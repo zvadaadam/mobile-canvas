@@ -264,12 +264,23 @@ final class CanvasFrame: UIViewController {
   }
 }
 
+// Floating tools stay above independent native frame windows without taking keyboard focus.
+final class CanvasToolsWindow: UIWindow {
+  override var canBecomeKey: Bool { false }
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    let hit = super.hitTest(point, with: event)
+    return hit === rootViewController?.view ? nil : hit
+  }
+}
+
 // MARK: - Canvas
 
 let maxScreens = 32
 private let toolbarHeight: CGFloat = 52
 private let statusHeight: CGFloat = 30
-private let inspectorWidth: CGFloat = 320
+private let inspectorWidth: CGFloat = 300
+private let navigatorWidth: CGFloat = 224
+private let canvasToolsClearance: CGFloat = 64
 /// Room around the board in screen points; the top keeps the counter-scaled frame names visible.
 private let boardMargins = UIEdgeInsets(top: 48, left: 32, bottom: 32, right: 32)
 
@@ -287,6 +298,10 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private let contextLabel = UILabel()
   private let emptyLabel = UILabel()
   private let zoomButton = UIButton(type: .system)
+  private let navigator = CanvasNavigator()
+  private var navigatorVisible = true
+  private let canvasTools = UIStackView()
+  private var toolsWindow: CanvasToolsWindow?
   private let inspector = CanvasInspector()
   private var inspectorVisible = true
   private var latestSession: [String: Any] = [:]
@@ -297,7 +312,8 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private weak var undoButton: UIButton?
   private weak var redoButton: UIButton?
   private weak var addButton: UIButton?
-  private weak var screensButton: UIButton?
+  private weak var navigatorButton: UIButton?
+  private weak var selectButton: UIButton?
   private weak var panButton: UIButton?
   private weak var flowButton: UIButton?
   private weak var inspectorButton: UIButton?
@@ -428,6 +444,8 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     statusBar.addSubview(contextLabel)
     view.addSubview(statusBar)
     setStatus(runtime == nil ? "Open a project with expo-canvas open --project <directory>." : "Connecting to your project…", runtime == nil ? .idle : .busy)
+    navigator.onSelect = { [weak self] id in self?.select(id, reveal: true) }
+    view.addSubview(navigator)
     inspector.isHidden = !inspectorVisible
     view.addSubview(inspector)
     inspector.onApply = { [weak self] identity, id, patch, completion in
@@ -450,7 +468,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     for (input, flags, action, title) in [
       ("=", UIKeyModifierFlags.command, #selector(zoomInCommand), "Zoom In"), ("+", .command, #selector(zoomInCommand), "Zoom In"),
       ("-", .command, #selector(zoomOutCommand), "Zoom Out"), ("0", .command, #selector(zoomResetCommand), "Actual Size"),
-      ("1", [.command, .shift], #selector(fitCommand), "Fit All Screens"), ("2", [.command, .shift], #selector(focusCommand), "Fit Selected Screen"), ("i", [.command, .shift], #selector(inspectorCommand), "Toggle Inspector"),
+      ("1", [.command, .shift], #selector(fitCommand), "Fit All Screens"), ("2", [.command, .shift], #selector(focusCommand), "Fit Selected Screen"), ("i", [.command, .shift], #selector(inspectorCommand), "Toggle Inspector"), ("l", [.command, .shift], #selector(navigatorCommand), "Toggle Screen List"),
     ] as [(String, UIKeyModifierFlags, Selector, String)] {
       addKeyCommand(UIKeyCommand(title: title, action: action, input: input, modifierFlags: flags))
     }
@@ -491,20 +509,26 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     undoButton = undo
     let redo = icon("arrow.uturn.forward", label: "Redo", identifier: "canvas.redo") { [weak self] in self?.history("redo") }
     redoButton = redo
-    let screens = pill("Screens", symbol: "chevron.down", identifier: "canvas.screens") {}
-    screens.configuration?.imagePlacement = .trailing
-    screens.showsMenuAsPrimaryAction = true
-    screensButton = screens
+    let navigatorToggle = icon("sidebar.left", label: "Screen list", key: "⇧⌘L", identifier: "canvas.screens") { [weak self] in self?.toggleNavigator() }
+    navigatorButton = navigatorToggle
+    setToggle(navigatorToggle, on: navigatorVisible)
+    let select = icon("cursorarrow", label: "Select and interact", identifier: "canvas.select") { [weak self] in
+      if self?.panning == true { self?.togglePan() }
+    }
+    selectButton = select
+    setToggle(select, on: true)
     let pan = icon("hand.draw", label: "Pan the canvas", identifier: "canvas.pan") { [weak self] in self?.togglePan() }
     panButton = pan
     let flow = icon("arrow.triangle.branch", label: "Show the app flow", identifier: "canvas.flow") { [weak self] in self?.toggleFlow() }
     flowButton = flow
     setToggle(flow, on: true)
     let arrange = icon("rectangle.3.group", label: "Arrange by flow", identifier: "canvas.arrange") { [weak self] in self?.arrangeByFlow() }
-    let fit = icon("arrow.up.left.and.arrow.down.right", label: "Fit all screens", key: "⇧⌘1", identifier: "canvas.fit") { [weak self] in self?.fit() }
     let zoomOut = icon("minus", label: "Zoom out", key: "⌘−", identifier: "canvas.zoom-out") { [weak self] in self?.zoom(by: 0.8) }
     var zoomConfig = UIButton.Configuration.plain()
     zoomConfig.title = "100%"
+    zoomConfig.image = UIImage(systemName: "chevron.down", withConfiguration: UIImage.SymbolConfiguration(pointSize: 8, weight: .medium))
+    zoomConfig.imagePlacement = .trailing
+    zoomConfig.imagePadding = 3
     zoomConfig.baseForegroundColor = Palette.icon
     zoomConfig.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 4, bottom: 6, trailing: 4)
     zoomConfig.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
@@ -513,18 +537,30 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       return attributes
     }
     zoomButton.configuration = zoomConfig
-    zoomButton.accessibilityLabel = "Zoom to 100%"
+    zoomButton.accessibilityLabel = "Zoom options"
     zoomButton.accessibilityIdentifier = "canvas.zoom-reset"
-    zoomButton.toolTip = "Zoom to 100%  ⌘0"
-    zoomButton.widthAnchor.constraint(equalToConstant: 48).isActive = true
-    zoomButton.addAction(UIAction { [weak self] _ in self?.moveViewport(scale: 1, center: self?.viewportCenter ?? .zero, animated: false) }, for: .touchUpInside)
+    zoomButton.toolTip = "Zoom · Fit all ⇧⌘1 · Fit selection ⇧⌘2"
+    zoomButton.widthAnchor.constraint(equalToConstant: 62).isActive = true
+    zoomButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
+    zoomButton.showsMenuAsPrimaryAction = true
+    zoomButton.menu = UIMenu(children: [
+      UIAction(title: "Fit all screens", image: UIImage(systemName: "arrow.up.left.and.arrow.down.right")) { [weak self] _ in self?.fit() },
+      UIAction(title: "Fit selected screen", image: UIImage(systemName: "viewfinder")) { [weak self] _ in self?.focusCommand() },
+      UIAction(title: "Actual size · 100%") { [weak self] _ in self?.zoomResetCommand() },
+      UIMenu(options: .displayInline, children: [25, 50, 75, 100, 150].map { percent in
+        UIAction(title: "\(percent)%") { [weak self] _ in
+          guard let self else { return }
+          self.moveViewport(scale: CGFloat(percent) / 100, center: self.viewportCenter, animated: false)
+        }
+      }),
+    ])
     let zoomIn = icon("plus", label: "Zoom in", key: "⌘+", identifier: "canvas.zoom-in") { [weak self] in self?.zoom(by: 1.25) }
     let inspectorToggle = icon("sidebar.right", label: "Inspector", key: "⇧⌘I", identifier: "canvas.inspector") { [weak self] in self?.toggleInspector() }
     inspectorButton = inspectorToggle
     setToggle(inspectorToggle, on: inspectorVisible)
     let agent = pill("Agent", symbol: "terminal", identifier: "canvas.agent-tools") { [weak self] in self?.showAgentTools() }
     let trailing = UIStackView(arrangedSubviews: [
-      add, group([undo, redo]), screens, group([pan, flow, arrange, fit]), group([zoomOut, zoomButton, zoomIn]), group([inspectorToggle]), agent,
+      group([undo, redo]), group([navigatorToggle, inspectorToggle]), agent, add,
     ])
     trailing.axis = .horizontal
     trailing.spacing = 10
@@ -541,6 +577,21 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       leading.trailingAnchor.constraint(lessThanOrEqualTo: trailing.leadingAnchor, constant: -16),
     ])
     view.addSubview(toolbar)
+    canvasTools.axis = .horizontal
+    canvasTools.spacing = 12
+    canvasTools.alignment = .center
+    for buttons in [[select, pan, flow, arrange], [zoomOut, zoomButton, zoomIn]] {
+      let cluster = group(buttons)
+      cluster.backgroundColor = Palette.surface
+      cluster.layer.cornerRadius = 12
+      cluster.layer.borderWidth = hairlineWidth
+      cluster.layer.borderColor = Palette.border.cgColor
+      cluster.layer.shadowColor = UIColor.black.cgColor
+      cluster.layer.shadowOpacity = 0.08
+      cluster.layer.shadowRadius = 10
+      cluster.layer.shadowOffset = CGSize(width: 0, height: 3)
+      canvasTools.addArrangedSubview(cluster)
+    }
   }
   /// A compact symbol button with a tooltip; toggles show their state in blue.
   private func icon(_ symbol: String, label: String, key: String? = nil, identifier: String, action: @escaping () -> Void) -> UIButton {
@@ -554,8 +605,8 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     button.accessibilityLabel = label
     button.accessibilityIdentifier = identifier
     button.toolTip = key.map { "\(label)  \($0)" } ?? label
-    button.widthAnchor.constraint(equalToConstant: 30).isActive = true
-    button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+    button.widthAnchor.constraint(equalToConstant: 36).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 36).isActive = true
     button.addAction(UIAction { _ in action() }, for: .touchUpInside)
     return button
   }
@@ -610,24 +661,28 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   @objc private func fitCommand() { fit() }
   @objc private func focusCommand() { if let selectedId { reveal(selectedId, animated: false) } }
   @objc private func inspectorCommand() { toggleInspector() }
+  @objc private func navigatorCommand() { toggleNavigator() }
 
   // MARK: Layout
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     let top = view.safeAreaInsets.top
-    let panel: CGFloat = inspectorVisible ? min(inspectorWidth, view.bounds.width * 0.4) : 0
-    let canvasWidth = view.bounds.width - panel
+    let panel: CGFloat = inspectorVisible ? min(inspectorWidth, view.bounds.width * 0.3) : 0
+    let sidebar: CGFloat = navigatorVisible ? min(navigatorWidth, view.bounds.width * 0.23) : 0
+    let canvasWidth = view.bounds.width - panel - sidebar
     toolbar.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: toolbarHeight)
     toolbarLine.frame = CGRect(x: 0, y: toolbarHeight - hairlineWidth, width: view.bounds.width, height: hairlineWidth)
-    scroll.frame = CGRect(x: 0, y: top + toolbarHeight, width: canvasWidth, height: max(1, view.bounds.height - top - toolbarHeight - statusHeight))
-    statusBar.frame = CGRect(x: 0, y: view.bounds.height - statusHeight, width: canvasWidth, height: statusHeight)
+    scroll.frame = CGRect(x: sidebar, y: top + toolbarHeight, width: canvasWidth, height: max(1, view.bounds.height - top - toolbarHeight - statusHeight))
+    statusBar.frame = CGRect(x: sidebar, y: view.bounds.height - statusHeight, width: canvasWidth, height: statusHeight)
     statusLine.frame = CGRect(x: 0, y: 0, width: canvasWidth, height: hairlineWidth)
     statusDot.frame = CGRect(x: 16, y: (statusHeight - 8) / 2, width: 8, height: 8)
     statusLabel.frame = CGRect(x: 30, y: 0, width: max(0, canvasWidth * 0.5 - 30), height: statusHeight)
     contextLabel.frame = CGRect(x: canvasWidth * 0.5, y: 0, width: max(0, canvasWidth * 0.5 - 16), height: statusHeight)
+    navigator.frame = CGRect(x: 0, y: top + toolbarHeight, width: sidebar, height: view.bounds.height - top - toolbarHeight)
     inspector.frame = CGRect(x: view.bounds.width - panel, y: top + toolbarHeight, width: panel, height: view.bounds.height - top - toolbarHeight)
     emptyLabel.frame = scroll.frame.insetBy(dx: 40, dy: 0)
+    positionTools()
     centerBoard()
     if !fitted && !frames.isEmpty && scroll.bounds.width > 100 {
       fitted = true
@@ -639,9 +694,30 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     }
     positionContentWindows()
   }
+  private func positionTools() {
+    guard let scene = view.window?.windowScene else { return }
+    if toolsWindow == nil {
+      let window = CanvasToolsWindow(windowScene: scene)
+      window.windowLevel = .normal + 2
+      window.overrideUserInterfaceStyle = .light
+      window.backgroundColor = .clear
+      let controller = UIViewController()
+      controller.view.backgroundColor = .clear
+      controller.view.addSubview(canvasTools)
+      window.rootViewController = controller
+      toolsWindow = window
+    }
+    let size = canvasTools.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+    let origin = view.convert(CGPoint(x: scroll.frame.midX - size.width / 2, y: scroll.frame.maxY - size.height - 16), to: view.window)
+    toolsWindow?.frame = CGRect(origin: origin, size: size)
+    canvasTools.frame = CGRect(origin: .zero, size: size)
+    toolsWindow?.isHidden = false
+  }
+  override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); positionTools() }
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { board }
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     zoomButton.configuration?.title = "\(Int((scroll.zoomScale * 100).rounded()))%"
+    zoomButton.accessibilityValue = zoomButton.configuration?.title
     for frame in frames.values {
       frame.setZoom(scroll.zoomScale)
       layoutTitle(frame)
@@ -882,6 +958,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private func togglePan() {
     panning.toggle()
     setToggle(panButton, on: panning)
+    setToggle(selectButton, on: !panning)
     scroll.panGestureRecognizer.minimumNumberOfTouches = 1
     scroll.canCancelContentTouches = panning
     if panning { contextLabel.text = "Pan · Drag anywhere to move the canvas · Click the hand again to interact" } else { updateEditor() }
@@ -941,9 +1018,10 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     for frame in frames.values { frame.setInteractionEnabled(false) }
     guard boardSize.width > 0 && boardSize.height > 0 && scroll.bounds.width > 0 else { return }
     let width = scroll.bounds.width - boardMargins.left - boardMargins.right
-    let height = scroll.bounds.height - boardMargins.top - boardMargins.bottom
-    moveViewport(scale: min(1, min(width / boardSize.width, height / boardSize.height)),
-      center: CGPoint(x: boardSize.width / 2, y: boardSize.height / 2), animated: false)
+    let height = scroll.bounds.height - boardMargins.top - boardMargins.bottom - canvasToolsClearance
+    let scale = max(scroll.minimumZoomScale, min(1, min(width / boardSize.width, height / boardSize.height)))
+    moveViewport(scale: scale,
+      center: CGPoint(x: boardSize.width / 2, y: boardSize.height / 2 + canvasToolsClearance / (2 * scale)), animated: false)
   }
   /// Fit the entire screen and its readable title, accounting for inspector and toolbar.
   private func reveal(_ id: String, scale: CGFloat? = nil, animated: Bool) {
@@ -952,10 +1030,10 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     fitted = true
     frame.setInteractionEnabled(true)
     let body = frame.view.frame
-    let fitScale = min(1, min((scroll.bounds.width - 96) / body.width, (scroll.bounds.height - 112) / body.height))
+    let fitScale = min(1, min((scroll.bounds.width - 96) / body.width, (scroll.bounds.height - 112 - canvasToolsClearance) / body.height))
     let zoom = scale ?? fitScale
     note = "Focused \(id) · whole screen at \(Int(zoom * 100))%"
-    moveViewport(scale: zoom, center: CGPoint(x: body.midX, y: body.midY - 14 / zoom), animated: animated)
+    moveViewport(scale: zoom, center: CGPoint(x: body.midX, y: body.midY + (canvasToolsClearance / 2 - 14) / zoom), animated: animated)
   }
   private func showInspection(_ value: [String: Any]?) {
     let nextScreen = value?["screenId"] as? String
@@ -1149,31 +1227,41 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     undoButton?.isEnabled = !mutationInFlight && history["canUndo"] as? Bool == true
     redoButton?.isEnabled = !mutationInFlight && history["canRedo"] as? Bool == true
     addButton?.isEnabled = !mutationInFlight && entries.count < maxScreens && !workspaceId.isEmpty
-    screensButton?.menu = UIMenu(children: orderedIds.compactMap { id in
-      guard let entry = entries[id] else { return nil }
-      return UIAction(title: entry["name"] as? String ?? "Screen", state: id == selectedId ? .on : .off) { [weak self] _ in self?.select(id, reveal: true) }
-    })
+    navigator.update(order: orderedIds, records: entries, selected: selectedId)
     if !panning {
       let name = selectedId.flatMap { entries[$0]?["name"] as? String }
       contextLabel.text = name.map { "\($0) · Interact with the screen · Drag its name to move it" } ?? "Click a screen to focus · Drag the background to pan · ⇧⌘2 to fit selection"
     }
   }
+  private func toggleNavigator() {
+    let center = viewportCenter
+    navigatorVisible.toggle()
+    navigator.isHidden = !navigatorVisible
+    setToggle(navigatorButton, on: navigatorVisible)
+    relayoutPanels(center: center)
+  }
+  private func relayoutPanels(center: CGPoint) {
+    view.endEditing(true)
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    if let selectedId { reveal(selectedId, animated: false) }
+    else { moveViewport(scale: scroll.zoomScale, center: center, animated: false) }
+  }
   private func toggleInspector() {
+    let center = viewportCenter
     inspectorVisible.toggle()
     inspector.isHidden = !inspectorVisible
     setToggle(inspectorButton, on: inspectorVisible)
     if inspectorVisible { inspector.showEditor() }
-    view.endEditing(true)
-    view.setNeedsLayout()
-    view.layoutIfNeeded()
+    relayoutPanels(center: center)
   }
   private func showInspector() {
     guard !inspectorVisible else { return }
+    let center = viewportCenter
     inspectorVisible = true
     inspector.isHidden = false
     setToggle(inspectorButton, on: true)
-    view.setNeedsLayout()
-    view.layoutIfNeeded()
+    relayoutPanels(center: center)
   }
   private func showAgentTools() {
     showInspector()
@@ -1336,6 +1424,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
         context.cgContext.clip(to: clip)
         window.drawHierarchy(in: rect, afterScreenUpdates: true)
         context.cgContext.restoreGState()
+      }
+      if let toolsWindow, !toolsWindow.isHidden {
+        toolsWindow.drawHierarchy(in: toolsWindow.frame.offsetBy(dx: -origin.x, dy: -origin.y), afterScreenUpdates: true)
       }
     }
     guard let png = image.pngData() else {

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const project = process.env.EXPO_CANVAS_PROJECT;
 if (!project) throw new Error('Open an explicit project with expo-canvas studio open --project <directory>.');
-const root = path.resolve(__dirname, '../..');
+const root = process.env.EXPO_CANVAS_INSTALLATION || path.resolve(__dirname, '../..');
 const rootModules = path.join(root, 'node_modules') + path.sep;
 const projectModules = path.join(project, 'node_modules');
 // Project-declared resolution is read once per Metro session; reopen the canvas after changing it.

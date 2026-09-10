@@ -21,7 +21,8 @@
     "test:compat": "node --import tsx scripts/test-compatibility.ts",
     "test:compat:native": "node --import tsx scripts/test-compatibility.ts --native",
     "test:package": "node --import tsx scripts/test-package.ts",
-    "package": "node --import tsx scripts/package.ts"
+    "package": "node --import tsx scripts/package.ts",
+    "test:package:native": "node --import tsx scripts/test-package-native.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
@@ -46,6 +47,7 @@
     "apps/native-host/tsconfig.json",
     "apps/native-host/native/",
     "apps/native-host/assets/",
-    "docs/distribution.md"
+    "docs/",
+    "apps/native-host/dependencies.lock"
   ]
 }

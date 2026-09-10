@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { repository } from './paths';
+import { signingTeam } from './installation';
 import { appDependencies } from './app-dependencies';
 import { createRequire } from 'node:module';
 const { excluded, iconPackages } = createRequire(import.meta.url)(join(repository, 'apps/linked-host/design/environment.cjs')) as { excluded: string[]; iconPackages: string[] };
@@ -38,12 +39,8 @@ export async function inspectEnvironment(options: { app?: string; project?: stri
   add('cocoapods', results[2] !== null, results[2] ? `CocoaPods ${results[2].split('\n').at(-1)}` : 'CocoaPods is not available.', 'Install CocoaPods and make the pod command available in PATH.');
   const hasIdentity = /"Apple Development:|"iPhone Developer:/.test(results[3] ?? '');
   checks.push({ id: 'signing-identity', status: hasIdentity ? 'ready' : 'manual', detail: hasIdentity ? 'A development signing identity is available.' : 'No available development signing identity was found.', ...(!hasIdentity ? { action: 'Add your Apple account in Xcode Settings → Accounts and configure development signing. Xcode may create the identity during the first build.' } : {}) });
-  let team = system.team;
-  for (const directory of [options.project && join(options.project, '.expo-canvas/native-build'), join(repository, '.context/native-studio')].filter(Boolean) as string[]) {
-    if (team) break;
-    try { team = JSON.parse(await readFile(join(directory, 'signing.json'), 'utf8')).team; } catch {}
-  }
-  add('signing-team', !!team && /^[A-Z0-9]{10}$/.test(team), team ? (/^[A-Z0-9]{10}$/.test(team) ? 'Development team configured.' : 'Development team format is invalid.') : 'No development team configured.', 'Set EXPO_CANVAS_DEVELOPMENT_TEAM to your ten-character Apple team ID before opening Canvas. Your credentials stay in Xcode.');
+  const team = system.team ?? await signingTeam(options.project);
+  add('signing-team', !!team && /^[A-Z0-9]{10}$/.test(team), team ? (/^[A-Z0-9]{10}$/.test(team) ? 'Development team configured.' : 'Development team format is invalid.') : 'No development team configured.', 'Run expo-canvas setup --team YOURTEAMID to save your Apple team ID, or set EXPO_CANVAS_DEVELOPMENT_TEAM. Your credentials stay in Xcode.');
   if (app) {
     add('app-sdk', sdk === 56 || sdk === 57, app.installedExpo ? `Installed Expo ${app.installedExpo}` : 'Expo is not installed in the app.', 'Automatic linked native previews currently support Expo 56 and 57. Install the app dependencies; other SDKs can still use source-only mapping.');
     const missing = app.missing.filter(name => !options.offline || ![...excluded, ...iconPackages].includes(name));

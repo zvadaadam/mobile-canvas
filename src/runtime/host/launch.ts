@@ -4,16 +4,16 @@
  * ERROR ends the session with a reason, NOTE explains a close.
  */
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
-import { readFile, open, access } from "node:fs/promises";
+import { readFile, open, access, mkdir, cp, writeFile } from "node:fs/promises";
 import { reserveMetroPort } from "./ports";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { repository } from "../paths";
+import { authoredHostPaths, nativeAppPath } from "../installation";
 import { inspectEnvironment } from "../environment";
 import { prepareMatchedHost } from "./matched";
 
-let host = join(repository, "apps/native-host");
-let output = join(repository, ".context/native-studio");
+let { host, output } = authoredHostPaths;
 const { values } = parseArgs({ options: { project: { type: "string" }, runtime: { type: "string" }, "host-id": { type: "string" } } });
 if (!values.project || !/^http:\/\/127\.0\.0\.1:\d+$/.test(values.runtime ?? "") || !values["host-id"])
   throw new Error("A project, loopback runtime and native host identity are required.");
@@ -74,16 +74,24 @@ try {
     host = matched.host;
     output = matched.output;
   }
+  console.log("Starting native renderer and Metro…");
   const build = JSON.parse(await readFile(join(output, "build.json"), "utf8").catch(error => {
-    if (error.code === "ENOENT") throw new Error("Build the native host first with npm run studio:build -- --team <development-team>.");
+    if (error.code === "ENOENT") throw new Error("Build the authored-screen host first with expo-canvas build. Run expo-canvas setup to check prerequisites.");
     throw error;
   }));
+  const launchApp = nativeAppPath(output);
+  if (build.app !== launchApp) {
+    await mkdir(dirname(launchApp), { recursive: true });
+    await cp(build.app, launchApp, { recursive: true, verbatimSymlinks: true });
+    build.app = launchApp;
+    await writeFile(join(output, 'build.json'), JSON.stringify(build, null, 2));
+  }
   executable = build.executable;
   const { port } = await reserveMetroPort();
   const log = await open(join(output, "metro.log"), "a", 0o600);
   metro = spawn(process.execPath, ["node_modules/expo/bin/cli", "start", "--localhost", "--port", String(port)], {
     cwd: host,
-    env: { ...process.env, EXPO_CANVAS_PROJECT: project, EXPO_OFFLINE: "1", EXPO_NO_TELEMETRY: "1" },
+    env: { ...process.env, EXPO_CANVAS_PROJECT: project, EXPO_CANVAS_INSTALLATION: repository, EXPO_OFFLINE: "1", EXPO_NO_TELEMETRY: "1" },
     stdio: ["ignore", log.fd, log.fd],
   });
   await log.close();

@@ -2,7 +2,7 @@
 
 A native macOS canvas for designing Expo apps with real code. Screens run side by side as live iOS surfaces: arrange them, click through native controls, follow the app flow between frames, and let a coding agent iterate through the CLI or MCP.
 
-The experimental [npm developer package](docs/distribution.md) can be built with `npm run package` and verified with `npm run test:package`. `expo-canvas setup --app /path/to/app` reports Mac build prerequisites before launch. Native execution still needs Apple silicon, Xcode and development signing; this is not a standalone Mac installer.
+The experimental [npm developer package](docs/distribution.md) can be built with `npm run package` and verified with `npm run test:package`. `expo-canvas setup --app /path/to/app --install --team YOURTEAMID` guides Mac setup, saves the team and installs frozen app dependencies before launch. Native execution still needs Apple silicon, Xcode and development signing; this is not a standalone Mac installer.
 
 ![Expo Canvas showing the Expo Workout app as a flow of live screens](docs/native-studio.png)
 
