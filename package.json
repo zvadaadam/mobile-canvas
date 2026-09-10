@@ -1,0 +1,51 @@
+{
+  "name": "expo-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local canvas for designing real Expo interfaces with AI agents.",
+  "type": "module",
+  "bin": {
+    "expo-canvas": "bin/expo-canvas.mjs"
+  },
+  "engines": {
+    "node": ">=22.14"
+  },
+  "scripts": {
+    "start": "node --import tsx src/runtime/cli.ts open",
+    "cli": "node --import tsx src/runtime/cli.ts",
+    "mcp": "node --import tsx src/runtime/cli.ts mcp",
+    "check": "tsc --noEmit",
+    "check:studio": "apps/native-host/node_modules/.bin/tsc --noEmit -p apps/native-host/tsconfig.json",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "studio:build": "node --import tsx src/runtime/host/build.ts",
+    "test:compat": "node --import tsx scripts/test-compatibility.ts",
+    "test:compat:native": "node --import tsx scripts/test-compatibility.ts --native",
+    "test:package": "node --import tsx scripts/test-package.ts",
+    "package": "node --import tsx scripts/package.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.1.13",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "packages/preview/",
+    "apps/linked-host/",
+    "apps/native-host/*.tsx",
+    "apps/native-host/*.ts",
+    "apps/native-host/*.cjs",
+    "apps/native-host/*.swift",
+    "apps/native-host/app.json",
+    "apps/native-host/package.json",
+    "apps/native-host/tsconfig.json",
+    "apps/native-host/native/",
+    "apps/native-host/assets/",
+    "docs/distribution.md"
+  ]
+}

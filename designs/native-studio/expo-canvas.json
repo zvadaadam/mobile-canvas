@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "workspaceId": "03f88b17-7f2e-4863-bb5a-d565adb01f0f",
+  "sequence": 27,
+  "document": {
+    "name": "Still — a little room to focus",
+    "screenIds": [
+      "screen-62ea4f2a-c9d5-4392-b3b1-a45fc5bb2729",
+      "screen-7fb141f2-58f4-4797-a7f8-04f7400a5cd7",
+      "screen-19d78b09-a40f-40e8-866e-f2c96ec9deb9"
+    ],
+    "screens": {
+      "screen-62ea4f2a-c9d5-4392-b3b1-a45fc5bb2729": {
+        "id": "screen-62ea4f2a-c9d5-4392-b3b1-a45fc5bb2729",
+        "key": "focus",
+        "name": "01 · Make room",
+        "source": "screens/focus.tsx",
+        "exportName": "default",
+        "x": 0,
+        "y": 0,
+        "width": 402,
+        "height": 874,
+        "props": {
+          "initialMinutes": 25,
+          "initialQuiet": true,
+          "intention": "Make something thoughtful"
+        },
+        "notes": "Target runtime: native-studio SDK 54 lab (@expo/ui 0.2.0-beta.9), not the repository Expo 57 preview. Purpose: choose the shape of a focused-work session. Fixture: 25 minutes, Quiet mode on, intention Make something thoughtful. A real SwiftUI slider moves in 5-minute steps from 10 to 60 and updates the visible duration and observable focus.minutes state. A native toggle changes focus.quiet and its explanatory copy. Open focus space increments focus.starts and navigates to ambient. This screen owns its fixture and does not assume global route state. Alternate fixture props may change minutes and quiet mode; this trial has exactly three screens, with distinct per-screen state keys until the host proves fixture isolation. The SDK 54 Slider uses steps=9 for ten 5-minute intervals; its native getStep formula was checked in installed source.",
+        "links": [
+          "ambient"
+        ]
+      },
+      "screen-7fb141f2-58f4-4797-a7f8-04f7400a5cd7": {
+        "id": "screen-7fb141f2-58f4-4797-a7f8-04f7400a5cd7",
+        "key": "ambient",
+        "name": "02 · Focus space",
+        "source": "screens/ambient.tsx",
+        "exportName": "default",
+        "x": 474,
+        "y": 0,
+        "width": 402,
+        "height": 874,
+        "props": {
+          "totalMinutes": 25,
+          "initialRunning": true,
+          "initialElapsed": 0
+        },
+        "notes": "Target runtime: native-studio SDK 54 lab (@expo/ui 0.2.0-beta.9), not the repository Expo 57 preview. Purpose: create a calm, usable focus space. Fixture: a fresh 25-minute session with animation and countdown running. React Native Animated moves two gradient forms behind an actual SwiftUI Liquid Glass timer surface. Pause focus stops the native-driver movement and countdown; Resume focus restarts them. Mock keys ambient.running and ambient.elapsed make behavior observable. View this session navigates to session without assuming an Expo Router route. Animation and interval clean up on unmount. Width is measured inside this screen, so concurrent neighboring screens cannot alter its geometry.",
+        "links": [
+          "session"
+        ]
+      },
+      "screen-19d78b09-a40f-40e8-866e-f2c96ec9deb9": {
+        "id": "screen-19d78b09-a40f-40e8-866e-f2c96ec9deb9",
+        "key": "session",
+        "name": "03 · A moment well spent",
+        "source": "screens/session.tsx",
+        "exportName": "default",
+        "x": 948,
+        "y": 0,
+        "width": 402,
+        "height": 874,
+        "props": {
+          "duration": 25,
+          "initialSaved": false,
+          "initialSheetOpen": false
+        },
+        "notes": "Target runtime: native-studio SDK 54 lab (@expo/ui 0.2.0-beta.9), not the repository Expo 57 preview. Purpose: review a session and retain a short reflection. Fixture: a completed 25-minute session, reflection not yet kept, native sheet closed. Reflect on this session presents a real SwiftUI BottomSheet with a visible drag indicator and 55%-height/large detents. The Keep this reflection native toggle updates session.saved. That is enough for today saves, increments session.reflections and dismisses the sheet; swipe dismissal also updates session.sheetOpen. The saved confirmation stays visible on the parent screen. Make room for another navigates to focus. Per-screen presentation containment must be verified in the native host. Close reflection dismisses the native sheet without changing saved state or counting a completed reflection; the completion button keeps its separate save-and-close action.",
+        "links": [
+          "focus"
+        ]
+      }
+    }
+  }
+}

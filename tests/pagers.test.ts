@@ -1,0 +1,95 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+import { buildRouteMap } from '../src/runtime/frames';
+import { arrangeByFlow } from '../src/runtime/arrange';
+import { ProjectStore } from '../src/runtime/project';
+import { identityOf, CommandSchema } from '../src/shared/model';
+import { setPagerPreview, pagerInitial, navigatePager } from '../apps/linked-host/PagerPreview';
+import { observeRouteOutput, getRouteOutputs } from '../apps/linked-host/RouteObserver';
+
+const flow = `import {useState,useRef,useCallback,useEffect} from 'react';
+import {useSharedValue,withSpring} from 'react-native-reanimated';
+import First from './first'; import Second from './second'; import {STEPS} from './steps';
+const PAGES={first:First,second:Second};
+export default function Flow(){
+ const [{index,furthest},setPage]=useState({index:0,furthest:0});
+ const current=useRef(0); const position=useSharedValue(0);
+ useEffect(()=>{position.value=withSpring(index)},[index]);
+ const goTo=useCallback((next:number)=>{current.current=next;setPage(previous=>({index:next,furthest:Math.max(previous.furthest,next)}))},[]);
+ return <>{STEPS.map((step,pageIndex)=>{if(pageIndex>furthest)return null;const Page=PAGES[step];const active=pageIndex===index;return <Page active={active} onContinue={()=>goTo(pageIndex+1)} />})}</>;
+}`;
+
+test('finite pagers map to stable, ordered frames with page-specific links, source reads, preserved edits and undo', async t => {
+ const root=await realpath(await mkdtemp(join(tmpdir(),'canvas-pager-'))), app=join(root,'app');
+ const write=async(path:string,code:string)=>{await mkdir(join(app,path,'..'),{recursive:true});await writeFile(join(app,path),code)};
+ await write('package.json',JSON.stringify({name:'Pager',dependencies:{expo:'~57.0.0'}}));
+ await write('node_modules/expo/package.json',JSON.stringify({version:'57.0.0'}));
+ await write('app/setup.tsx',"export { default } from '../wizard/flow';");
+ await write('app/done.tsx','export default function Done(){return null}');
+ await write('app/setup-second.tsx','export default function Other(){return null}');
+ await write('wizard/steps.ts',"export const STEPS=['first','second'] as const;");
+ await write('wizard/flow.tsx',flow);
+ await write('wizard/first.tsx','export default function First(){return <Page title="Your name" />}');
+ await write('wizard/second.tsx',`import {router} from 'expo-router';export default function Second(){return <Button onPress={()=>router.push('/done')} />}`);
+ const map=await buildRouteMap({app,routesDirectory:'app',aliases:{}});
+ const steps=map.frames.filter(frame=>frame.step);
+ assert.deepEqual(steps.map(frame=>frame.key),['setup','setup-second-2'],'does not collide with a real route');
+ assert.deepEqual(steps.map(frame=>frame.links),[['setup-second-2'],['done']], 'content links belong only to the page importing them; Back is not a flow edge');
+ assert.equal(steps[0].step?.title,'Your name');
+ const store=await ProjectStore.initialize(join(root,'canvas'),'Pager');
+ t.after(async()=>{await store.close();await rm(root,{recursive:true,force:true})});
+ const run=()=>store.importSources({...identityOf(store.session()),requestId:crypto.randomUUID(),from:app,link:true,map:true,preview:true});
+ await run();
+ const screens=Object.values(store.session().project.document.screens);
+ const first=screens.find(screen=>screen.key==='setup')!, second=screens.find(screen=>screen.key==='setup-second-2')!;
+ assert.equal((await store.readRouteSource(second.id)).appPath,'wizard/second.tsx');
+ await store.execute(CommandSchema.parse({...identityOf(store.session()),requestId:'edit',label:'Author context',operations:[{type:'screen.update',id:first.id,patch:{notes:'Keep this note',links:['done']}}]}));
+ const before=store.session(); await run();
+ assert.deepEqual(store.session().project.document.screenIds,before.project.document.screenIds);
+ assert.equal(store.session().project.document.screens[first.id].notes,'Keep this note');
+ assert.deepEqual(store.session().project.document.screens[first.id].links,['done']);
+ const beforeUpdate=store.session();
+ await write('wizard/first.tsx','export default function First(){return <Page title="Updated question" />}');
+ await run();
+ assert.equal((store.session().project.document.screens[first.id].props.route as any).step.title,'Updated question');
+ await store.history('undo',identityOf(store.session()));
+ assert.deepEqual(store.session().project.document,beforeUpdate.project.document,'one undo restores the previous step metadata and authored context');
+ const doc=store.session().project.document, positions=new Map(arrangeByFlow(doc).map(move=>[move.id,move.patch]));
+ const a=positions.get(first.id)??first,b=positions.get(second.id)??second;
+ assert.equal(a.y,b.y);assert.ok(b.x>=a.x+first.width,'steps sit in an ordered, nonoverlapping band');
+ await write('wizard/flow.tsx',flow.replace('if(pageIndex>furthest)','if(false)'));
+ assert.equal((await buildRouteMap({app,routesDirectory:'app',aliases:{}})).frames.filter(frame=>frame.step).length,0,'unproven pager state is not split');
+});
+
+test('preview transformation pins only recognized hook slots and intercepts transitions before local writes', () => {
+ const require=createRequire(import.meta.url), babel=require('../apps/native-host/node_modules/@babel/core'), plugin=require('../apps/linked-host/preview-routes.cjs');
+ const pager={file:'wizard/flow.tsx',setter:'setPage',fields:['index','furthest'],refs:['current'],shared:['position'],transition:'goTo'};
+ const run=(filename:string)=>babel.transformSync(flow,{filename,configFile:false,babelrc:false,parserOpts:{plugins:['typescript','jsx']},plugins:[[plugin,{app:'/app',pagers:[pager]}]]}).code;
+ const code=run('/app/wizard/flow.tsx');
+ assert.equal((code.match(/_pagerInitial\(/g)??[]).length,3);
+ assert.match(code,/if \(_navigatePager\(next, "wizard\/flow.tsx"\)\) return;\s*current.current = next/);
+ assert.doesNotMatch(run('/app/other.tsx'),/_pagerInitial|_navigatePager/);
+ const jumps:number[]=[];
+ setPagerPreview({index:1,count:3,key:'second',routeKey:'setup',pager},index=>jumps.push(index));
+ assert.deepEqual(pagerInitial({index:0,furthest:0},pager.file,'setPage'),{index:1,furthest:1});
+ assert.equal(pagerInitial(0,pager.file,'current'),1);
+ assert.equal(pagerInitial(0,pager.file,'position'),1);
+ assert.equal(pagerInitial(0,pager.file,'other'),0);
+ assert.equal(navigatePager(2,pager.file),true);navigatePager(-1,pager.file);navigatePager(1,pager.file);
+ assert.deepEqual(jumps,[2]);
+ setPagerPreview(undefined,()=>{});assert.equal(navigatePager(2,pager.file),false);
+});
+
+test('empty route reporting observes only the exported screen return, preserves output and recovers when data arrives', async () => {
+ const require=createRequire(import.meta.url),babel=require('../apps/native-host/node_modules/@babel/core'),plugin=require('../apps/linked-host/preview-routes.cjs');
+ const code=babel.transformSync('export default function Screen(){const helper=()=>{return null}; if(!data)return null;return <Page/>} function Nested(){return null}',{filename:'/app/app/result.tsx',configFile:false,babelrc:false,parserOpts:{plugins:['jsx']},plugins:[[plugin,{app:'/app',routeFiles:['app/result.tsx']}]]}).code;
+ assert.equal((code.match(/_observeRouteOutput\(/g)??[]).length,2);
+ assert.equal(observeRouteOutput(null,'app/result.tsx'),null);
+ await new Promise(resolve=>setTimeout(resolve,5));assert.equal(getRouteOutputs()['app/result.tsx'],'empty');
+ const view={type:'View'};assert.equal(observeRouteOutput(view,'app/result.tsx'),view);
+ await new Promise(resolve=>setTimeout(resolve,5));assert.equal(getRouteOutputs()['app/result.tsx'],'output');
+});

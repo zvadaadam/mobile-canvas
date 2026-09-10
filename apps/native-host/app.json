@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Expo Canvas Native",
+    "slug": "expo-canvas-native-studio",
+    "version": "0.1.0",
+    "orientation": "default",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.expocanvas.native-studio",
+      "infoPlist": {
+        "UISupportsTrueScreenSizeOnMac": true,
+        "UIApplicationSupportsIndirectInputEvents": true,
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "plugins": [
+      "./with-native-canvas.cjs",
+      "expo-sqlite",
+      "expo-font",
+      "expo-video",
+      "expo-web-browser",
+      "expo-asset"
+    ],
+    "experiments": {
+      "tsconfigPaths": false
+    }
+  }
+}
