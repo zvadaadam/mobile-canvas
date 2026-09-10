@@ -1,0 +1,6 @@
+node_modules/
+.context/
+.expo/
+.expo-canvas/
+*.tsbuildinfo
+.DS_Store

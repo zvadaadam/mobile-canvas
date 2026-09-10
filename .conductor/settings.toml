@@ -1,0 +1,15 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "npm ci && if [ \"$CONDUCTOR_IS_LOCAL\" = 1 ]; then npm ci --prefix apps/native-host; fi"
+run_mode = "concurrent"
+
+[scripts.run.canvas]
+available_in = ["local"]
+command = 'npm start -- --project designs/native-studio --port "$CONDUCTOR_PORT"'
+default = true
+icon = "panels-top-left"
+
+[scripts.run.test]
+command = "npm test"
+icon = "flask-conical"

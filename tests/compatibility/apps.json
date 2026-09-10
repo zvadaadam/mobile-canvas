@@ -1,0 +1,100 @@
+[
+  {
+    "id": "clarity",
+    "repository": "https://github.com/SchroederNathan/clarity.git",
+    "revision": "297e699ea03902d4f3172aa7b1f3ddbc2ef8900c",
+    "local": ".context/clarity-source",
+    "routes": "app",
+    "aliasRoot": ".",
+    "frames": 19,
+    "sourceRoutes": 15,
+    "steps": 5,
+    "requiredLinks": [
+      [
+        "sign-in",
+        "name"
+      ],
+      [
+        "sign-in",
+        "index"
+      ],
+      [
+        "name-microphone",
+        "index"
+      ]
+    ],
+    "forbiddenLinks": [
+      [
+        "session-word-detail",
+        "index"
+      ]
+    ],
+    "nativeProject": ".context/clarity-design",
+    "nativeScreens": [
+      "name",
+      "name-microphone",
+      "index",
+      "manage-subscription",
+      "session-results",
+      "session"
+    ],
+    "offline": true,
+    "orderedRows": [
+      "sign-in",
+      "name",
+      "index"
+    ]
+  },
+  {
+    "id": "hot-chocolate",
+    "repository": "https://github.com/expo/hot-chocolate.git",
+    "revision": "1806f3b8fca27ddd23d554484db779525adde3f3",
+    "local": ".context/hot-chocolate-source",
+    "routes": "app",
+    "aliasRoot": ".",
+    "frames": 6,
+    "sourceRoutes": 6,
+    "steps": 0,
+    "requiredLinks": [
+      [
+        "index",
+        "flavours"
+      ],
+      [
+        "locations",
+        "locations-2"
+      ]
+    ],
+    "forbiddenLinks": [],
+    "nativeProject": ".context/hot-chocolate-six-screen-proof",
+    "nativeScreens": [
+      "index",
+      "flavours",
+      "locations-2"
+    ],
+    "offline": false,
+    "orderedRows": []
+  },
+  {
+    "id": "workout",
+    "repository": "https://github.com/zvadaadam/expo-workout-app.git",
+    "revision": "dd3d800470495363d79cc685d65daf4547e41860",
+    "routes": "src/app",
+    "aliasRoot": "src",
+    "frames": 18,
+    "sourceRoutes": 18,
+    "steps": 0,
+    "requiredLinks": [
+      [
+        "today",
+        "settings"
+      ]
+    ],
+    "forbiddenLinks": [],
+    "nativeProject": null,
+    "nativeScreens": [],
+    "offline": false,
+    "orderedRows": [],
+    "nativeUnavailableReason": "Source-only regression at this revision; the curated SDK 54 workout export was removed. No drop-in native coverage is claimed."
+  }
+]
