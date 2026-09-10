@@ -1,29 +1,86 @@
-# Mac developer package
+# Install Expo Canvas on a Mac
 
-Expo Canvas can be installed from an npm tarball. This packages the CLI, MCP server, preview hooks and native-host source templates. It does not include a pre-signed universal Mac renderer, app projects, credentials, node_modules or native build caches. Nothing has been published to the npm registry; `private: true` still prevents accidental publication.
+This is a local npm package for Apple-silicon Macs. It installs the CLI, MCP server and native host templates. Canvas builds and signs the iOS renderer on your Mac using Xcode. There is no npm publication, notarized installer or cloud build in this workflow.
+
+## Share the package
 
 From the source checkout:
 
 ```sh
-npm install
+npm ci
 npm run package
 npm run test:package
 ```
 
-Send `.context/distribution/expo-canvas-0.1.0.tgz` to another developer. On their Mac:
+Give testers `.context/distribution/expo-canvas-0.1.0.tgz`. They do not need this repository. Install it using a user-managed Node installation (no sudo):
 
 ```sh
 npm install --global /path/to/expo-canvas-0.1.0.tgz
-expo-canvas setup --app /absolute/path/to/expo-app --offline
-export EXPO_CANVAS_DEVELOPMENT_TEAM=YOURTEAMID
-expo-canvas open --app /absolute/path/to/expo-app --offline
+expo-canvas setup
 ```
 
-Use a user-managed Node installation so npm does not require sudo. The setup command is read-only, exits nonzero for missing requirements, and returns each check with its next action. Repeat it after configuring signing. It checks Apple-silicon/arm64 execution, Node 22.14+, full Xcode and its first-launch setup, CocoaPods, development signing configuration, supported installed Expo SDK, direct app dependencies and Bun when required. No tools are installed automatically and no Apple agreements are accepted. A missing signing identity is a manual check because Xcode may create one during provisioning. Passing setup does not guarantee signing permissions, native-module compatibility, service access or rendered pixels.
+The setup checklist explains missing requirements. Native previews require Apple silicon, arm64 Node 22.14+, full compatible Xcode with its initial setup completed, CocoaPods, and development signing configured in Xcode. Bun is needed for apps using Bun lockfiles or patches. Install Expo in the app, not globally; a separate global Expo CLI is unnecessary.
 
-A fresh linked-host launch performs the same checks before dependency installation and compilation. `canvas_environment` exposes them through the existing loopback runtime to MCP. A cached host can reopen without repeating the cold-build checklist. A native first-run welcome UI is not included in this package: the current native window itself requires a built, signed renderer. A future standalone Mac launcher can display the same report before building that renderer.
+Xcode, its license and your Apple account are configured by you. Setup does not accept agreements, install system tools or change accounts. It links to the tool installation guides. Setup reuses a saved team. If exactly one team has a valid local Apple Development signing identity, it selects and saves that team automatically. With multiple teams, an interactive terminal offers a numbered choice; with none, it explains Xcode account setup. Return skips the choice. `--team` remains an explicit override. `setup --json` is read-only unless you explicitly pass `--team`.
 
-For an agent, configure the installed executable (use an absolute path when the agent does not inherit your shell PATH):
+## Open an existing app
+
+From the Expo app's root folder, install its dependencies from its lockfile and check the environment:
+
+```sh
+cd /path/to/expo-app
+expo-canvas setup --install
+expo-canvas open
+```
+
+`setup`, `open`, `map` and `mcp` detect the current Expo app root. Commands also recognize a current Canvas project root. Explicit `--app` / `--project` paths take precedence; detection does not walk to parent folders or evaluate app configuration. The command is `expo-canvas setup`, not `expo setup`.
+
+`--install` explicitly runs `npm ci` or `bun install --frozen-lockfile` in the app directory. It downloads dependencies into `node_modules` without asking Canvas to rewrite app source or lockfiles. Package installation can execute package lifecycle scripts, like the app's normal dependency installation. Automatic installation requires a supported lockfile; other package managers need their ordinary app setup first. Re-running `--install` is optional after dependencies are installed.
+
+For a design preview without service credentials, add `--offline` to **both** commands:
+
+```sh
+cd /path/to/clarity
+expo-canvas setup --install --offline
+expo-canvas open --offline
+```
+
+Offline design preview disconnects supported integrations. It does not mean dependency downloads work without internet. If a package manager reports missing private packages, setup rechecks whether they are required for the selected preview. Missing required packages still block launch. Services and missing session data remain explicitly unavailable; no records are invented.
+
+The first open prepares a separate host, installs matching dependencies, compiles/signs it, starts Metro and opens the native canvas. Subsequent opens reuse the build. The CLI reports preparation messages; detailed native logs are in the generated project's `.expo-canvas/native-build` directory. Keep the `open` terminal running, or let an MCP session own the runtime. Native app source, auth and build compatibility limitations are described in [drop-in previews](drop-in.md).
+
+## Why signing needs a team
+
+Canvas compiles its own iOS renderer, including the imported app's native modules, to run on this Mac. Xcode associates the local development signature and provisioning with an Apple development team. Installing Expo or signing into an Expo account does not supply that identity. A Team ID is an identifier, not a password; private keys stay in Keychain. Canvas discovers teams from public certificates matched to valid development signing identities, using the certificate's organizational-unit field rather than its display-name suffix.
+
+The team is needed for this native build path, not for npm installation, source-only maps or MCP source inspection. This is development signing, separate from eventual notarization. See [Apple's signing workflow](https://help.apple.com/xcode/mac/current/en.lproj/dev60b6fbbc7.html).
+
+## Where files live
+
+- **Installed npm package:** source/templates, treated as read-only.
+- **Settings:** `~/Library/Application Support/Expo Canvas/settings.json`. Stores the Team ID, not certificates or Apple account credentials. `EXPO_CANVAS_DEVELOPMENT_TEAM` overrides the saved team.
+- **Shared generated files:** `~/Library/Caches/Expo Canvas` for installed authored-host builds and the capture helper. When a build lives under the macOS temporary directory, its runnable iOS wrapper is staged under `~/Library/Caches/Expo Canvas/renderers/<build-path-hash>` before launch; this also applies when tests override the main cache directory.
+- **Linked app experiments:** `~/.expo-canvas/apps/<app-path-hash>` by default, with their own `.expo-canvas/native-host` and `native-build` directories. `--project` selects a separate location. These projects also hold your notes, overrides and history: do not delete the whole project as if it were a build cache.
+
+Tests can isolate settings/cache through `EXPO_CANVAS_DATA_DIR` and `EXPO_CANVAS_CACHE_DIR`. A source checkout retains its existing SDK 54 host/build paths for development. Native dependency/build directories can occupy several GB per app.
+
+## Create an authored project
+
+The installed package also carries the SDK 54 authored-screen host and a frozen dependency snapshot. Build it with the installed executable:
+
+```sh
+expo-canvas setup --team YOURTEAMID
+expo-canvas build
+expo-canvas init --project /path/to/my-design --name "My design"
+expo-canvas screen add --project /path/to/my-design --key home --name Home
+expo-canvas open --project /path/to/my-design
+```
+
+`build` downloads and compiles that host in the per-user cache. `build --incremental` rebuilds after native shell changes when a full build already exists. Linked Expo 56/57 apps instead prepare their matching host automatically during `open`.
+
+## Connect an agent
+
+Use the installed executable, with an absolute path if the agent doesn't inherit your terminal PATH:
 
 ```json
 {
@@ -36,14 +93,20 @@ For an agent, configure the installed executable (use an absolute path when the 
 }
 ```
 
-MCP startup maps source; `canvas_studio_open` explicitly executes the app. Source-only mapping and MCP do not need Xcode. Native previews require an Apple-silicon Mac, compatible macOS/Xcode, CocoaPods, app dependencies, a usable development signing team and network access for initial dependency downloads. The automatic linked native path supports Expo 56/57. The authored SDK 54 host requires a separate host dependency install/build; the npm smoke test does not certify that build path. SDK 57 full native reload remains a known crash risk.
+MCP startup maps source. `canvas_studio_open` explicitly executes it. `canvas_environment` provides the shared prerequisite report; `expo-canvas setup --json` exposes it to scripts. Source-only maps do not require Xcode.
 
-## Distribution boundaries
+## Validate before sharing
 
-The current renderer is an iOS target compiled for Xcode's “Designed for iPad” Mac destination, signed for development, launched with local runtime arguments and dependent on Metro. Copying the wrapped `.app` or placing it in a DMG does not turn it into a standalone Mac product.
+```sh
+npm test
+npm run check
+npm run test:compat
+npm run test:package
+npm run test:package:native
+```
 
-Apple lists iPhone/iPad apps on Apple-silicon Macs as an App Store distribution path, and documents TestFlight and development/ad-hoc export for testing. Developer ID/notarization is the direct-distribution route for macOS apps; it must not be assumed to make this development-signed iOS wrapper universally installable. See [Apple's distribution comparison](https://developer.apple.com/macos/distribution/) and [running iOS apps on Mac](https://developer.apple.com/documentation/apple-silicon/running-your-ios-apps-in-macos).
+The slow native package test installs a tarball outside the checkout, makes its package directory read-only, uses isolated settings/cache and fresh project paths containing spaces, downloads the pinned test apps' dependencies, builds their native hosts, captures representative screens through the installed MCP server, checks source diffs and tests cached reopen. It retains artifacts for visual review and writes `.context/distribution/native-package-test.json`. It requires the Mac's existing Xcode/signing and network access; it is not a second-Mac test. `--resume /path/to/test-directory` retries an existing acceptance run after a fix; its timings reuse intermediates and must not be described as a clean cold build. The three-app source corpus remains in [compatibility](compatibility.md).
 
-A no-Xcode download would need a supported distribution strategy for the actual iOS renderer, bundled or managed Node/Metro, writable per-user build/cache locations, first-run project selection and checks, and an update strategy. A Catalyst renderer would need separate verification of native control fidelity and native module compatibility; it cannot be assumed equivalent to the current iOS runtime. No browser renderer is part of this proposal.
+A local package passing these checks is suitable for a supervised developer trial, not proof that four other Macs are already configured. Run setup on each tester's machine. Known SDK 57 full-reload crashes and other preview fidelity limitations remain documented in [compatibility](compatibility.md).
 
-For now, the npm tarball is the concrete developer distribution path: recipients build/sign the native host locally. Public npm publication additionally needs a chosen package name/scope, registry ownership and release metadata/license decisions. No account configuration or publication is performed by packaging. npm documents the tarball workflow in [npm pack](https://docs.npmjs.com/cli/v11/commands/npm-pack/).
+The onboarding currently lives in the npm command's setup flow. A native welcome window before Xcode/signing are available is not included. Publishing to npm and a notarized Mac bootstrap are later distribution steps. Copying today's development-signed iOS wrapper into a DMG is not a verified public Mac installation path; see [Apple's distribution comparison](https://developer.apple.com/macos/distribution/).

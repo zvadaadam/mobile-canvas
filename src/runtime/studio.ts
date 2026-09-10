@@ -7,6 +7,7 @@ import { StudioControlSchema, StudioInspectSchema, StudioReportSchema, StudioCap
 import { digest, type ProjectStore } from "./project";
 import { CanvasError } from "./errors";
 import { repository } from "./paths";
+import { authoredHostPaths, cacheDirectory, nativeAppPath } from "./installation";
 import { matchedHostPaths } from "./host/matched";
 import { identityOf, type Operation, type Screen } from "../shared/model";
 import { chooseRouteExample, routeExamples } from "./route-examples";
@@ -83,8 +84,8 @@ export class NativeStudio {
     if (this.child) {
       // Already open: bring the window forward and reveal the requested screen.
       if (request.screen) this.commands.set("host", { id: ++this.commandId, type: "focus", screenId: request.screen });
-      const output = this.store.session().project.document.appPreview ? matchedHostPaths(this.store.directory).output : join(repository, ".context/native-studio");
-      const foreground = this.launch("open", [join(output, "Expo Canvas Native.app")], { stdio: "ignore" });
+      const output = this.store.session().project.document.appPreview ? matchedHostPaths(this.store.directory).output : authoredHostPaths.output;
+      const foreground = this.launch("open", [nativeAppPath(output)], { stdio: "ignore" });
       foreground.on("error", (error) => { this.error = error.message; });
       return this.state();
     }
@@ -277,16 +278,16 @@ export class NativeStudio {
         if (input.screenId) throw new CanvasError("screen_capture", "The native screen snapshot did not arrive. Inspect again; no canvas image was substituted.");
         method = "screen";
         const { stdout } = await run("ps", ["-p", String(this.host.pid), "-o", "command="], { timeout: 3000 });
-        const output = this.sdk === 54 ? join(repository, ".context/native-studio") : matchedHostPaths(this.store.directory).output;
+        const output = this.sdk === 54 ? authoredHostPaths.output : matchedHostPaths(this.store.directory).output;
         const { executable } = JSON.parse(await readFile(join(output, "build.json"), "utf8"));
         if (typeof executable !== "string" || !/^[A-Za-z0-9_-]+$/.test(executable)
           || !stdout.includes(`/${executable}.app/${executable} `) || !stdout.includes(`--host-id ${this.hostId}`))
           throw new CanvasError("studio_identity", "The reported process is not this native canvas.", 409);
-        const helper = join(repository, ".context/native-studio/capture");
         const source = join(repository, "apps/native-host/capture.swift");
+        const helper = join(cacheDirectory, `capture-${digest(await readFile(source)).slice(0, 16)}`);
         const built = await stat(helper).catch(() => null);
-        if (!built || built.mtimeMs < (await stat(source)).mtimeMs) {
-          await mkdir(join(repository, ".context/native-studio"), { recursive: true });
+        if (!built) {
+          await mkdir(cacheDirectory, { recursive: true });
           await run("xcrun", ["swiftc", "-parse-as-library", source, "-o", helper], { timeout: 30_000 });
         }
         await run(helper, [String(this.host.pid), temporary], { timeout: 15_000 });

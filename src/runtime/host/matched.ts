@@ -6,6 +6,7 @@ import { repository } from "../paths";
 import { appDependencies, dependencyIssue } from "../app-dependencies";
 import { createRequire } from "node:module";
 import { sharedFontLoader } from "./fonts";
+import { copyTemplate } from "./copy-template";
 import { writeFileAtomically } from "../atomic-file";
 const { excluded, iconPackages } = createRequire(import.meta.url)(join(repository, "apps/linked-host/design/environment.cjs")) as { excluded: string[]; iconPackages: string[] };
 
@@ -40,6 +41,7 @@ export async function prepareMatchedHost(project: string, app: string, signal?: 
   await mkdir(host, { recursive: true });
   await mkdir(output, { recursive: true });
   const source = join(repository, "apps/native-host");
+  const previousPlugin = await readFile(join(host, "with-native-canvas.cjs"), "utf8").catch(() => "");
   const previousConfig = await readFile(join(host, "app.json"), "utf8").catch(() => "");
   const hashModules = async (directory: string) => {
     const hash = createHash("sha256");
@@ -104,11 +106,11 @@ export async function prepareMatchedHost(project: string, app: string, signal?: 
     await writeFileAtomically(fontFile, fontSource);
   }
   for (const name of ["index.tsx", "Screen.tsx", "Boundary.tsx", "UnavailablePreview.tsx", "frame-errors.ts", "console.ts", "registry.d.ts", "with-native-canvas.cjs", "native", "assets"])
-    await cp(join(source, name), join(host, name), { recursive: true });
+    await copyTemplate(join(source, name), join(host, name));
   for (const name of ["metro.cjs", "LinkedApp.tsx", "RouteObserver.ts", "PagerPreview.ts", "GuardPreview.ts", "FrameNavigation.ts", "route-location.ts", "babel.config.cjs", "preview-routes.cjs", "SQLite.ts", "MMKV.ts", "FrameDimensions.ts", "context.d.ts", "design"])
-    await cp(join(repository, "apps/linked-host", name), join(host, name === "metro.cjs" ? "metro.config.cjs" : name), { recursive: true });
+    await copyTemplate(join(repository, "apps/linked-host", name), join(host, name === "metro.cjs" ? "metro.config.cjs" : name));
   if (offline) await writeFile(join(host, "index.tsx"), "import './design/Network';\n" + await readFile(join(source, "index.tsx"), "utf8"));
-  await cp(join(repository, "src/shared/route-samples.ts"), join(host, "route-samples.ts"));
+  await copyTemplate(join(repository, "src/shared/route-samples.ts"), join(host, "route-samples.ts"));
   const tsconfig = JSON.parse(await readFile(join(source, "tsconfig.json"), "utf8"));
   tsconfig.compilerOptions.paths["@expo-canvas/preview"] = [join(repository, "packages/preview/index.tsx")];
   tsconfig.include = ["*.ts", "*.tsx"];
@@ -131,7 +133,7 @@ export async function prepareMatchedHost(project: string, app: string, signal?: 
   const guards = [...new Set(guardEdges.map((edge: any) => edge.file))].map(file => ({ file, atoms: [...new Set(guardEdges.filter((edge: any) => edge.file === file).flatMap((edge: any) => Object.keys(edge.before)))] }));
   const routeFiles = [...new Set(Object.values(document.screens ?? {}).map((screen: any) => screen.props?.route?.file).filter(Boolean))];
   await writeFile(join(host, "canvas-host.json"), JSON.stringify({ repository, app, project, sdk, design, pagers, guards, routeFiles, frameMMKV: dependencies["react-native-mmkv"]?.startsWith("4.") ?? false }));
-  const nativeHash = createHash("sha256").update(dependencyKey).update(JSON.stringify(config)).update(fontSource);
+  const nativeHash = createHash("sha256").update("quoted-build-paths-v1").update(dependencyKey).update(JSON.stringify(config)).update(fontSource);
   for (const folder of ["native", "assets", "modules"]) {
     const files = await readdir(join(host, folder), { recursive: true, withFileTypes: true }).catch(() => []);
     for (const file of files.filter(file => file.isFile()).sort((a, b) => join(a.parentPath, a.name).localeCompare(join(b.parentPath, b.name))))
@@ -147,7 +149,7 @@ export async function prepareMatchedHost(project: string, app: string, signal?: 
     }
   } catch {}
   console.log(`Building the app's native canvas host (Expo ${sdk})…`);
-  const incremental = builtDependencies === dependencyKey && !modulesChanged && previousConfig === JSON.stringify(config, null, 2)
+  const incremental = builtDependencies === dependencyKey && !modulesChanged && previousPlugin === await readFile(join(host, "with-native-canvas.cjs"), "utf8") && previousConfig === JSON.stringify(config, null, 2)
     && await access(join(host, "ios/Podfile.lock")).then(() => true, () => false);
   if (!incremental) {
     // This generated target's pod snapshot belongs to the old native inputs.

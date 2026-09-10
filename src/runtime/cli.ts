@@ -9,8 +9,9 @@ import { ProjectStore } from "./project";
 import { discoverRuntime, startRuntime } from "./server";
 import { repository } from "./paths";
 import { doctor } from "./doctor";
-import { inspectEnvironment } from "./environment";
+import { setup, formatEnvironment } from "./setup";
 import { appProject } from "./app-project";
+import { projectContext } from "./project-context";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -34,6 +35,10 @@ const { values, positionals } = parseArgs({
     files: { type: "string" },
     force: { type: "boolean" },
     link: { type: "boolean" },
+    team: { type: "string" },
+    install: { type: "boolean" },
+    json: { type: "boolean" },
+    incremental: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -54,10 +59,11 @@ const screenIn = (session: Session, reference: string | undefined): Screen => {
 
 const help = `Expo Canvas — design real Expo screens on a native canvas
 
-  expo-canvas setup [--app <app>] [--project <dir>] [--offline] # check Mac build prerequisites
-  expo-canvas open|mcp --app <app> [--project <separate-dir>] # automatic native Expo 56/57 route previews
+  expo-canvas setup [--app <app>] [--offline] [--team <id>] [--install] [--json]
+  expo-canvas build [--team <id>] [--incremental]            # build the authored-screen host
+  expo-canvas open|mcp [--app <app>] [--project <separate-dir>] # automatic native Expo 56/57 route previews
     --offline                                            # design preview: disconnected services, no API keys
-  expo-canvas map --app <app> [--project <separate-dir>]     # source-only route mapping, no execution
+  expo-canvas map [--app <app>] [--project <separate-dir>]     # source-only route mapping, no execution
   expo-canvas init --project <dir> --name <name>
   expo-canvas import --project <dir> --from <app> [--link] [--map] [--name <name>] [--include a,b] [--exclude a,b] [--modules pkg,pkg]
   expo-canvas open --project <dir> [--screen <key>] [--port <n>]   # the native canvas; --screen reveals one screen at 100%
@@ -74,23 +80,36 @@ const help = `Expo Canvas — design real Expo screens on a native canvas
   expo-canvas studio focus|reset <screen> --project <dir>
   expo-canvas mcp --project <dir>
 
-Every command names an explicit project. CLI and MCP attach to its running runtime or start one.
+Run setup, open, map or mcp from your Expo app root; no path flag is needed.
+Canvas project roots are also detected. Explicit --app / --project paths take precedence.
+CLI and MCP attach to the project runtime or start one.
 import brings an existing Expo app onto the canvas: with --link the app's source runs in place and
 lib/ holds only the files you override; without it the source is copied into lib/ with provenance.
-The canvas is a native app for Apple silicon; build it once with npm run studio:build -- --team <id>.`;
+The canvas is a native app for Apple silicon; use setup for prerequisites and build for authored screens.`;
 
 async function main() {
   if (values.help || command === "help") {
     console.log(help);
     return;
   }
+  if (!values.project && !values.app && !["init", "build"].includes(command)) {
+    const context = await projectContext(process.cwd());
+    if (context.project) values.project = context.project;
+    else if (["setup", "open", "map", "mcp"].includes(command)) values.app = context.app;
+  }
   if (command === "setup") {
-    const report = await inspectEnvironment({ app: values.app && resolve(values.app), project: values.project && resolve(values.project), offline: values.offline });
-    output(report);
+    const report = await setup({ app: values.app && resolve(values.app), project: values.project && resolve(values.project), offline: values.offline, team: values.team, install: values.install, json: values.json });
+    if (values.json) output(report); else console.log(formatEnvironment(report, values.app === process.cwd() || values.project === process.cwd()));
     if (!report.readyToBuild) process.exitCode = 1;
     return;
   }
-  if (!values.project && !values.app) throw new Error("Pass --project <directory> or --app <Expo app directory>.");
+  if (command === "build") {
+    const child = spawn(process.execPath, ['--import', 'tsx', 'src/runtime/host/build.ts', ...(values.team ? ['--team', values.team] : []), ...(values.incremental ? ['--incremental'] : [])], { cwd: repository, stdio: 'inherit' });
+    const code = await new Promise<number | null>((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); });
+    if (code !== 0) throw new Error('Native build failed. See the build output above.');
+    return;
+  }
+  if (!values.project && !values.app) throw new Error("Run this command from an Expo app or Canvas project root, or pass --project <directory> / --app <directory>.");
   if (command === "map" && !values.app) throw new Error("Pass --app <Expo app directory> to map its routes.");
   if (values.app && !["open", "map", "mcp"].includes(command)) throw new Error("Use --app with open, map or mcp; use --project for other commands.");
   const app = values.app ? await appProject(resolve(values.app)) : undefined;
@@ -291,8 +310,11 @@ async function openNativeCanvas(client: CanvasClient, screenKey?: string) {
   const screen = screenKey ? screenIn(session, screenKey) : undefined;
   const opened = await client.request("/studio/open", { ...identityOf(session), ...(screen ? { screen: screen.id } : {}) });
   const deadline = Date.now() + (session.project.document.appPreview ? 30 * 60_000 : 150_000);
+  let lastProgress = "";
   while (Date.now() < deadline) {
     const state = await client.request("/studio/state");
+    const progress = state.logs?.filter((line: string) => !line.startsWith("EXPO_CANVAS_")).at(-1);
+    if (progress && progress !== lastProgress) { console.error(progress); lastProgress = progress; }
     if (state.error) throw new Error(state.error);
     if (state.hostId !== opened.hostId) throw new Error("The native session changed while opening. Try again.");
     if (state.ready || state.phase === "degraded") {

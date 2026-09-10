@@ -84,9 +84,11 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     positions.spacing = 8
     positions.distribution = .fillEqually
     editor.addArrangedSubview(field("Position", positions))
-    configure(propsField, label: "Preview props", height: 132, monospaced: true)
+    positionX.leftView = coordinateLabel("X")
+    positionY.leftView = coordinateLabel("Y")
+    configure(propsField, label: "Preview props", height: 104, monospaced: true)
     editor.addArrangedSubview(field("Preview props", propsField))
-    configure(notesField, label: "Screen context", height: 160)
+    configure(notesField, label: "Screen context", height: 120)
     editor.addArrangedSubview(field("Context", notesField))
     style(applyButton, title: "Apply changes", primary: true)
     applyButton.addAction(UIAction { [weak self] _ in self?.apply() }, for: .touchUpInside)
@@ -115,8 +117,10 @@ final class CanvasInspector: UIView, UITextViewDelegate {
       guard let self, let id = self.boundID else { return }
       self.onDuplicate?(id)
     }
-    let tools = UIStackView(arrangedSubviews: [source, reset, duplicateButton, UIView()])
+    editor.addArrangedSubview(source)
+    let tools = UIStackView(arrangedSubviews: [reset, duplicateButton!])
     tools.axis = .horizontal
+    tools.distribution = .fillEqually
     tools.spacing = 8
     editor.addArrangedSubview(tools)
     message.font = Fonts.regular(12)
@@ -133,6 +137,16 @@ final class CanvasInspector: UIView, UITextViewDelegate {
 
   // MARK: Components
 
+  private func coordinateLabel(_ text: String) -> UIView {
+    let container = UIView(frame: CGRect(x: 0, y: 0, width: 30, height: 32))
+    let label = UILabel(frame: CGRect(x: 10, y: 0, width: 12, height: 32))
+    label.text = text
+    label.font = Fonts.medium(11)
+    label.textColor = Palette.muted
+    label.textAlignment = .center
+    container.addSubview(label)
+    return container
+  }
   private func caption(_ text: String) -> UILabel {
     let label = UILabel()
     label.text = text
@@ -214,7 +228,9 @@ final class CanvasInspector: UIView, UITextViewDelegate {
       attributes.font = Fonts.medium(13)
       return attributes
     }
+    config.titleLineBreakMode = .byTruncatingTail
     button.configuration = config
+    button.heightAnchor.constraint(greaterThanOrEqualToConstant: 34).isActive = true
     button.accessibilityIdentifier = "inspector." + title.lowercased().replacingOccurrences(of: " ", with: "-")
   }
   private func makeButton(_ title: String, action: @escaping () -> Void) -> UIButton {
@@ -252,18 +268,19 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     let project = session["project"] as? [String: Any] ?? [:]
     let document = project["document"] as? [String: Any] ?? [:]
     let offline = (document["appPreview"] as? [String: Any])?["offline"] as? Bool == true
-    var previewText = offline ? "Design preview · Local app data. Connected services are unavailable; remote records are not supplied." : ""
+    var previewText = offline ? "Offline preview · Local data only. Connected services are unavailable." : ""
     if let selected, let entry = (document["screens"] as? [String: [String: Any]])?[selected],
        let route = (entry["props"] as? [String: Any])?["route"] as? [String: Any] {
       if let step = route["step"] as? [String: Any], let index = step["index"] as? Int, let count = step["count"] as? Int {
-        previewText += "\nStep \(index + 1) of \(count) · Pinned preview. Next and Back focus another frame."
+        previewText += "\nStep \(index + 1) of \(count) · Independent preview."
       }
-      previewText += "\nFlow lines show detected content navigation. State-driven transitions may be missing."
     }
     previewLabel.text = previewText.trimmingCharacters(in: .whitespacesAndNewlines)
     previewLabel.isHidden = previewText.isEmpty
     let records = document["screens"] as? [String: [String: Any]] ?? [:]
     if dirty {
+      // Keep the preview explanation attached to the draft's screen, too.
+      if boundID != selected { previewLabel.isHidden = true }
       if let draftError {
         message.text = draftError
         return
@@ -285,6 +302,7 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     editor.isHidden = false
     let changed = boundID != selected || identity["sequence"] as? Int != project["sequence"] as? Int
     guard changed else { return }
+    if boundID != selected { scroll.setContentOffset(.zero, animated: false) }
     boundID = selected
     baseline = entry
     identity = ["workspaceId": project["workspaceId"] ?? "", "sequence": project["sequence"] ?? 0]
@@ -405,5 +423,133 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     let cliRow = UIStackView(arrangedSubviews: [copyCli, UIView()])
     cliRow.axis = .horizontal
     auxiliary.addArrangedSubview(cliRow)
+  }
+}
+
+/// A searchable index of the document; selection uses the canvas' shared focus path.
+final class CanvasNavigator: UIView, UITableViewDataSource, UITableViewDelegate {
+  var onSelect: ((String) -> Void)?
+  private let edge = hairline()
+  private let title = UILabel()
+  private let count = UILabel()
+  private let search = UISearchTextField()
+  private let table = UITableView(frame: .zero, style: .plain)
+  private let empty = UILabel()
+  private var order: [String] = []
+  private var records: [String: [String: Any]] = [:]
+  private var filtered: [String] = []
+  private var selected: String?
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = Palette.surface
+    title.text = "Screens"
+    title.font = Fonts.medium(14)
+    title.textColor = Palette.ink
+    count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+    count.textColor = Palette.muted
+    count.textAlignment = .right
+    search.placeholder = "Find a screen"
+    search.font = Fonts.regular(13)
+    search.backgroundColor = Palette.canvas
+    search.layer.cornerRadius = 8
+    search.autocorrectionType = .no
+    search.autocapitalizationType = .none
+    search.accessibilityIdentifier = "canvas.screen-search"
+    search.addAction(UIAction { [weak self] _ in self?.filter() }, for: .editingChanged)
+    table.backgroundColor = .clear
+    table.separatorStyle = .none
+    table.rowHeight = 58
+    table.dataSource = self
+    table.delegate = self
+    table.keyboardDismissMode = .onDrag
+    table.register(UITableViewCell.self, forCellReuseIdentifier: "screen")
+    empty.text = "No matching screens"
+    empty.font = Fonts.regular(13)
+    empty.textColor = Palette.muted
+    empty.textAlignment = .center
+    for child in [title, count, search, table, empty, edge] { addSubview(child) }
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    title.frame = CGRect(x: 16, y: 16, width: bounds.width - 80, height: 22)
+    count.frame = CGRect(x: bounds.width - 64, y: 16, width: 48, height: 22)
+    search.frame = CGRect(x: 12, y: 50, width: bounds.width - 24, height: 34)
+    table.frame = CGRect(x: 8, y: 98, width: bounds.width - 16, height: max(0, bounds.height - 106))
+    empty.frame = CGRect(x: 12, y: 120, width: bounds.width - 24, height: 40)
+    edge.frame = CGRect(x: bounds.width - hairlineWidth, y: 0, width: hairlineWidth, height: bounds.height)
+  }
+  func update(order: [String], records: [String: [String: Any]], selected: String?) {
+    let changed = self.selected != selected
+    // Pager variants are appended during import; keep their steps together in navigation.
+    let route = { (id: String) in (records[id]?["props"] as? [String: Any])?["route"] as? [String: Any] }
+    var listed = Set<String>()
+    self.order = []
+    for id in order where !listed.contains(id) {
+      var group = [id]
+      if route(id)?["step"] != nil, let file = route(id)?["file"] as? String {
+        group = order.filter { route($0)?["step"] != nil && route($0)?["file"] as? String == file }
+        group.sort { ((route($0)?["step"] as? [String: Any])?["index"] as? Int ?? 0) < ((route($1)?["step"] as? [String: Any])?["index"] as? Int ?? 0) }
+      }
+      for member in group where listed.insert(member).inserted { self.order.append(member) }
+    }
+    self.records = records
+    self.selected = selected
+    filter()
+    if changed, let selected, let index = filtered.firstIndex(of: selected) {
+      table.scrollToRow(at: IndexPath(row: index, section: 0), at: .none, animated: false)
+    }
+  }
+  private func filter() {
+    let query = (search.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    filtered = order.filter { id in
+      guard let entry = records[id] else { return false }
+      return query.isEmpty || ["name", "key", "source"].contains { (entry[$0] as? String ?? "").localizedCaseInsensitiveContains(query) }
+    }
+    count.text = query.isEmpty ? "\(order.count)" : "\(filtered.count)/\(order.count)"
+    empty.text = order.isEmpty ? "Your screens will appear here" : "No matching screens"
+    empty.isHidden = !filtered.isEmpty
+    table.reloadData()
+  }
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { filtered.count }
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "screen", for: indexPath)
+    let id = filtered[indexPath.row]
+    let entry = records[id] ?? [:]
+    let active = selected == id
+    let route = (entry["props"] as? [String: Any])?["route"] as? [String: Any]
+    let step = route?["step"] as? [String: Any]
+    var content = cell.defaultContentConfiguration()
+    content.text = entry["name"] as? String ?? "Screen"
+    content.textProperties.font = Fonts.medium(13)
+    content.textProperties.color = active ? Palette.blue : Palette.ink
+    content.textProperties.numberOfLines = 1
+    content.secondaryText = step.flatMap { step in
+      guard let index = step["index"] as? Int, let count = step["count"] as? Int else { return nil }
+      return "Step \(index + 1) of \(count)"
+    } ?? (entry["key"] as? String)
+    content.secondaryTextProperties.font = Fonts.regular(11)
+    content.secondaryTextProperties.color = active ? Palette.blue : Palette.muted
+    content.secondaryTextProperties.numberOfLines = 1
+    content.image = UIImage(systemName: step == nil ? "iphone" : "rectangle.stack", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .regular))
+    content.imageProperties.tintColor = active ? Palette.blue : Palette.muted
+    content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 8)
+    content.imageToTextPadding = 10
+    cell.contentConfiguration = content
+    var background = UIBackgroundConfiguration.clear()
+    background.backgroundColor = active ? Palette.blueTint : .clear
+    background.cornerRadius = 8
+    background.backgroundInsets = NSDirectionalEdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0)
+    cell.backgroundConfiguration = background
+    cell.accessibilityIdentifier = "canvas.screen.\(entry["key"] as? String ?? id)"
+    cell.accessibilityTraits = active ? [.button, .selected] : .button
+    cell.interactions.filter { $0 is UIToolTipInteraction }.forEach { cell.removeInteraction($0) }
+    cell.addInteraction(UIToolTipInteraction(defaultToolTip: "\(entry["name"] as? String ?? "Screen")\n\(entry["source"] as? String ?? "")"))
+    return cell
+  }
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    endEditing(true)
+    onSelect?(filtered[indexPath.row])
   }
 }

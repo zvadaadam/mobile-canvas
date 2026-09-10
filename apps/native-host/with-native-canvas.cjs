@@ -10,6 +10,14 @@ module.exports = (config) => {
     return config;
   });
   config = withXcodeProject(config, (config) => {
+    // Canvas loads JS from its explicit Metro session. Exit before Expo's older
+    // bundle script expands a shell command containing an unquoted project path.
+    for (const phase of Object.values(config.modResults.hash.project.objects.PBXShellScriptBuildPhase ?? {})) {
+      if (!phase || typeof phase !== 'object' || !phase.shellScript?.includes('react-native-xcode.sh')) continue;
+      const script = JSON.parse(phase.shellScript);
+      const skip = 'if [ "$SKIP_BUNDLING" = "1" ]; then exit 0; fi\n';
+      if (!script.startsWith(skip)) phase.shellScript = JSON.stringify(skip + script);
+    }
     const projectName = IOSConfig.XcodeUtils.getProjectName(config.modRequest.projectRoot);
     IOSConfig.XcodeUtils.addBuildSourceFileToGroup({ filepath: `${projectName}/CanvasInspector.swift`, groupName: projectName, project: config.modResults });
     return config;

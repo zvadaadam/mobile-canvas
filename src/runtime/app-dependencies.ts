@@ -17,9 +17,13 @@ export async function appDependencies(app: string) {
   const npmrc = await readFile(join(app, ".npmrc"), "utf8").catch(() => "");
   const scopes = [...npmrc.matchAll(/^\s*(@[a-z0-9._-]+):registry\s*=/gmi)].map(match => match[1]);
   const registryPackages = missing.filter(name => scopes.some(scope => name.startsWith(`${scope}/`)));
-  const bunLock = await readFile(join(app, "bun.lock")).then(() => true, () => false);
-  const install = pkg.packageManager?.startsWith("bun@") || bunLock ? "bun install --frozen-lockfile" : "npm install";
-  return { declaredExpo: pkg.dependencies?.expo ?? null, installedExpo: versions.expo ?? null, versions, missing, registryPackages, install };
+  const has = (name: string) => readFile(join(app, name)).then(() => true, () => false);
+  const bunLock = await has('bun.lock') || await has('bun.lockb');
+  const bun = pkg.packageManager?.startsWith('bun@') || bunLock || Object.keys(pkg.patchedDependencies ?? {}).length > 0;
+  const otherManager = pkg.packageManager && !/^(bun|npm)@/.test(pkg.packageManager);
+  const installArgs = otherManager ? null : bun && bunLock ? ['bun', 'install', '--frozen-lockfile'] : !bun && await has('package-lock.json') ? ['npm', 'ci', '--no-audit', '--no-fund'] : null;
+  const install = installArgs?.join(' ') ?? (bun ? 'bun install --frozen-lockfile' : otherManager ? `${pkg.packageManager.split('@')[0]} install` : 'npm install');
+  return { installArgs, declaredExpo: pkg.dependencies?.expo ?? null, installedExpo: versions.expo ?? null, versions, missing, registryPackages, install };
 }
 
 export function dependencyIssue(report: Awaited<ReturnType<typeof appDependencies>>) {
