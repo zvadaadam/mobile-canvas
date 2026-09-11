@@ -12,13 +12,14 @@ import type { CanvasClient } from "./client";
 import { doctor } from "./doctor";
 import { StudioControlSchema, StudioCaptureSchema, StudioInspectSchema, StudioOpenSchema } from "../shared/studio";
 import { ImportSchema, OriginApplySchema } from "../shared/import";
+import { canvasSkills, readCanvasSkill } from "./skills";
 
 export async function startMcp(client: CanvasClient) {
   const server = new McpServer(
     { name: "mobile-canvas", version: "0.1.0" },
     {
       instructions:
-        "Mobile Canvas is a native macOS canvas that runs real Expo screens side by side. Read the canvas before editing; carry workspaceId and sequence into every mutation. Screens are ordinary TSX under screens/, components/ or lib/; @expo-canvas/preview gives mock state and navigation by screen key, and each screen's links draw the app flow. One canvas_batch is one undoable transaction; source.write needs the hash from canvas_read_source. canvas_studio_open opens the canvas (authored Expo 54 or linked Expo 56/57, iOS on Mac, up to 32 frames); pass screen to fit and center one whole frame. Use canvas_route_map for linked app screen IDs, then canvas_inspect_screen to focus a frame and receive its native image and metadata with visible agent presence. Use canvas_studio_capture for a canvas overview; use native computer tools for pointer interaction. canvas_import brings an existing Expo app onto the canvas: prefer link so the app's own source runs in place and lib/ holds only overrides keyed by app path; keep the original app untouched, review with canvas_origin_diff and carry files back only with canvas_origin_apply when asked. Keep themes scoped per screen, never global. Each screen's notes describe purpose, fixture states, interactions and destinations. No cloud or media generation is involved. Experimental Swift projects use nativePreview metadata: canvas_import discovers source-backed screen flows and reuses existing preview factories; missing preview data remains visible. Swift source overrides use source.write plus native.override with the original source hash. Re-import refreshes Xcode target membership. Swift edits require native rebuild/relaunch; ordinary Swift app navigation is not yet pinned.",
+        "Mobile Canvas runs real native mobile screens side by side on a Mac. Start with canvas_read_skill (core), also available as mobile-canvas://skills/core. Use canvas_route_map to find linked screens, canvas_read for all frames and current identity, canvas_studio_open to explicitly run project code, and canvas_inspect_screen for a native image plus metadata. Inspection moves the shared human viewport. A mapped route or ready receipt does not prove populated pixels. Keep imported app source unchanged unless the user requests applying changes; carry current workspaceId/sequence and source hashes into mutations. CLI and MCP share one local runtime and undo history. The bundled skill explains setup, editing, offline data and Expo/Swift limitations.",
     },
   );
   const register = (
@@ -63,6 +64,17 @@ export async function startMcp(client: CanvasClient) {
       },
     );
   };
+  for (const skill of canvasSkills) {
+    server.registerResource(skill.name, skill.uri, {
+      description: skill.description,
+      mimeType: "text/markdown",
+    }, async uri => ({ contents: [{ uri: uri.href, mimeType: "text/markdown", text: await readCanvasSkill(skill.name) }] }));
+  }
+  server.registerTool("canvas_read_skill", {
+    description: "Read the workflow bundled with this installed version. Start with core for sitemap, native screenshots, editing and known limits; full adds the detailed editing reference. Reads documentation only.",
+    inputSchema: z.object({ name: z.enum(["core"]).default("core"), full: z.boolean().default(false) }),
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, async ({ name, full }) => ({ content: [{ type: "text" as const, text: await readCanvasSkill(name, full) }] }));
   register(
     "canvas_read",
     "Read the project, ordered screens, source hashes, human selection, history and code version.",

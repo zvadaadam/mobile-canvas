@@ -55,6 +55,7 @@
     "apps/native-host/tsconfig.json",
     "apps/native-host/native/ExpoRenderer.swift",
     "docs/",
+    "skills/",
     "apps/native-host/dependencies.lock",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",

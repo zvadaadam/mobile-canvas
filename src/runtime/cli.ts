@@ -14,6 +14,7 @@ import { doctor } from "./doctor";
 import { setup, formatEnvironment } from "./setup";
 import { appProject } from "./app-project";
 import { projectContext } from "./project-context";
+import { canvasSkills, readCanvasSkill } from "./skills";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -42,6 +43,7 @@ const { values, positionals } = parseArgs({
     team: { type: "string" },
     install: { type: "boolean" },
     json: { type: "boolean" },
+    full: { type: "boolean" },
     incremental: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
@@ -63,6 +65,8 @@ const screenIn = (session: Session, reference: string | undefined): Screen => {
 
 const help = `Mobile Canvas — design real Expo screens on a native canvas
 
+  mobile-canvas skills [list] [--json]                       # bundled agent workflow; no project required
+  mobile-canvas skills get core [--full] [--json]             # read before using the canvas; --full adds editing reference
   mobile-canvas setup [--app <app>] [--offline] [--team <id>] [--install] [--json]
   mobile-canvas build [--team <id>] [--incremental]            # build the authored-screen host
   mobile-canvas open|mcp [--app <app>] [--project <separate-dir>] # automatic native Expo 56/57 route previews
@@ -98,6 +102,20 @@ async function main() {
   if (values.help || command === "help") {
     console.log(help);
     return;
+  }
+  if (command === "skills") {
+    if ((!action || action === "list") && !argument && !values.full) {
+      if (values.json) output(canvasSkills);
+      else console.log(canvasSkills.map(skill => `${skill.name} — ${skill.description}`).join("\n"));
+      return;
+    }
+    if (action === "get" && argument && positionals.length === 3) {
+      const content = await readCanvasSkill(argument, values.full);
+      if (values.json) output({ name: argument, content });
+      else process.stdout.write(content);
+      return;
+    }
+    throw new Error("Use skills list [--json] or skills get core [--full] [--json].");
   }
   if (!values.project && !values.app && !["init", "build"].includes(command)) {
     const context = await projectContext(process.cwd());

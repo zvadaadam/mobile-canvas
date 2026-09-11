@@ -89,6 +89,8 @@ Use the installed executable, with an absolute path if the agent doesn't inherit
 }
 ```
 
+Read `mobile-canvas skills get core` for the installed workflow (`--full` adds editing examples). MCP exposes the same content through `canvas_read_skill` and the `mobile-canvas://skills/core` resource. See [the agent workflow](agent-workflow.md).
+
 MCP startup maps source. `canvas_studio_open` explicitly executes it. `canvas_environment` provides the shared prerequisite report; `mobile-canvas setup --json` exposes it to scripts. Source-only maps do not require Xcode.
 
 ## Validate before sharing

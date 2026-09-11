@@ -6,7 +6,8 @@
 - [Import an Expo app](drop-in.md)
 - [Swift builds and supported inputs](swift-xcode-builds.md)
 - [Component previews, animation evidence and image fixtures](native-preview-catalog.md)
-- [Connect an agent through CLI or MCP](agents.md)
+- [Agent workflow: map, inspect and diagnose](agent-workflow.md)
+- [Agent setup and editing reference](agents.md)
 
 ## Develop the product
 
