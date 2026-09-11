@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -13,7 +13,25 @@ const directory = await realpath(await mkdtemp(join(tmpdir(), 'canvas-package-')
 const { manifest, tarball } = await packageCanvas();
 const files = manifest.files.map((file: { path: string }) => file.path) as string[];
 for (const file of files) assert.ok(!/(^|\/)(\.context|\.conductor|node_modules|ios|build|designs|\.env[^/]*|\.npmrc)(\/|$)|\.(p12|mobileprovision)$/.test(file), `private/build material included: ${file}`);
-for (const file of ['bin/expo-canvas.mjs', 'src/runtime/cli.ts', 'src/runtime/host/build.ts', 'apps/native-host/native/CanvasHost.swift', 'apps/native-host/capture.swift', 'apps/native-host/dependencies.lock', 'apps/linked-host/design/environment.cjs', 'packages/preview/index.tsx']) assert.ok(files.includes(file), `missing runtime input: ${file}`);
+const requiredInputs = [
+  'bin/expo-canvas.mjs',
+  'src/runtime/cli.ts',
+  'src/runtime/host/build.ts',
+  'src/runtime/adapters/expo/frames.ts',
+  'src/runtime/host/canvas-template.ts',
+  ...(await readdir(join(repository, 'packages/native-canvas/Sources'))).filter(name => name.endsWith('.swift')).map(name => `packages/native-canvas/Sources/${name}`),
+  'packages/native-canvas/Tools/capture.swift',
+  'packages/native-canvas/Resources/InterMedium.dataset/Inter-Medium.ttf',
+  'packages/native-canvas/Resources/LICENSE-Expo',
+  'packages/native-canvas/Resources/LICENSE-Inter',
+  'apps/native-host/native/ExpoRenderer.swift',
+  'apps/swift-host/SwiftRenderer.swift',
+  'apps/native-host/dependencies.lock',
+  'apps/linked-host/design/environment.cjs',
+  'packages/preview/index.tsx',
+];
+for (const file of requiredInputs) assert.ok(files.includes(file), `missing runtime input: ${file}`);
+assert.ok(!files.some(file => /^apps\/native-host\/(?:assets\/|native\/Canvas|capture\.swift)/.test(file)), "generated shared canvas copies must not be packaged");
 const client = new Client({ name: 'installed-package-test', version: '1' });
 try {
   const prefix = join(directory, 'install');

@@ -1,5 +1,5 @@
-import type { Screen } from '../shared/model';
-import { maxRouteDestinations, observedHref, paramsForScreenRoute, routeParamNames } from '../shared/route-samples';
+import type { Screen } from '../../../shared/model';
+import { maxRouteDestinations, observedHref, paramsForScreenRoute, routeParamNames } from '../../../shared/route-samples';
 
 export type RouteExample = { href: string; from: string; file: string };
 export function routeExamples(from: string, value: unknown): RouteExample[] {

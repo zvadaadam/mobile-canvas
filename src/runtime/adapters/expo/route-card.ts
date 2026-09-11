@@ -1,4 +1,4 @@
-import type { RouteFrame } from "../shared/routes";
+import type { RouteFrame } from "../../../shared/routes";
 
 /** Native map metadata, explicitly distinct from a rendered app screen. No app imports. */
 export function routeCard(frame: RouteFrame) {

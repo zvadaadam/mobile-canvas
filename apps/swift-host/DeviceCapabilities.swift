@@ -17,8 +17,8 @@ import ObjectiveC.runtime
 /// Designed-for-iPad's virtual motion device can abort while many preview
 /// owners start/stop and release it. A Mac canvas has no handheld orientation:
 /// report that capability as unavailable, retaining one inert native manager.
-enum CanvasPreviewDeviceMotion {
-  private final class Storage: @unchecked Sendable {
+nonisolated enum CanvasPreviewDeviceMotion {
+  nonisolated private final class Storage: @unchecked Sendable {
     let manager = UnavailableMotionManager()
   }
   private static let storage = Storage()
@@ -27,7 +27,7 @@ enum CanvasPreviewDeviceMotion {
   }
 }
 
-private final class UnavailableMotionManager: CMMotionManager {
+nonisolated private final class UnavailableMotionManager: CMMotionManager {
   override var isDeviceMotionAvailable: Bool { false }
   override var isDeviceMotionActive: Bool { false }
   override var isAccelerometerAvailable: Bool { false }

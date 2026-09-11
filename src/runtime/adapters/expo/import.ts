@@ -5,15 +5,13 @@ import { cp, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs
 import { basename, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import ts from "typescript";
-import type { ImportDependency, ImportReport, ImportRequest } from "../shared/import";
-import { SourcePath } from "../shared/model";
-import { CanvasError } from "./errors";
-import { fileURLToPath } from "node:url";
+import type { ImportDependency, ImportReport, ImportRequest } from "../../../shared/import";
+import { SourcePath } from "../../../shared/model";
+import { CanvasError } from "../../errors";
+import { repository } from "../../paths";
 import { dirname, resolve } from "node:path";
 import { buildRouteMap } from "./frames";
 import { appDependencies, dependencyIssue } from "./app-dependencies";
-
-const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const digest = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
 const skippedDirectories = new Set(["node_modules", ".git", ".expo", "ios", "android", "build", "dist", "__tests__", "__mocks__", "coverage"]);

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { buildRouteMap } from '../src/runtime/frames';
+import { buildRouteMap } from '../src/runtime/adapters/expo/frames';
 import { arrangeByFlow } from '../src/runtime/arrange';
 import { ProjectStore } from '../src/runtime/project';
 import { identityOf, CommandSchema } from '../src/shared/model';

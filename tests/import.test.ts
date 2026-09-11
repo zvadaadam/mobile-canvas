@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProjectStore } from "../src/runtime/project";
-import { moduleSpecifiers } from "../src/runtime/import";
+import { moduleSpecifiers } from "../src/runtime/adapters/expo/import";
 import { CommandSchema, identityOf } from "../src/shared/model";
 
 async function fakeApp() {

@@ -1,8 +1,8 @@
 import ts from 'typescript';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LayoutInfo, RouteFrame } from '../shared/routes';
-import { evaluateGuard, type GuardExpression, type GuardTransition } from '../shared/guards';
+import type { LayoutInfo, RouteFrame } from '../../../shared/routes';
+import { evaluateGuard, type GuardExpression, type GuardTransition } from '../../../shared/guards';
 
 function expression(node: ts.Expression): GuardExpression | null {
   if (ts.isIdentifier(node)) return { atom: node.text };

@@ -4,11 +4,11 @@ Expo Canvas follows the current Expo website and dashboard: a light, neutral int
 
 ## Sources
 
-The reference is `expo.dev`, captured on September 8, 2026, and Universe's `server/website` at the supplied worktree. The wordmark is Expo's exact SVG geometry as an Xcode vector asset, and Inter Medium is the reference site's `Inter-Medium.ttf` as a bundled font asset; Expo's MIT notice and Inter's OFL notice accompany them under `apps/native-host/assets`. System UI text uses SF; code and paths use SF Mono.
+The reference is `expo.dev`, captured on September 8, 2026, and Universe's `server/website` at the supplied worktree. The wordmark is Expo's exact SVG geometry as an Xcode vector asset, and Inter Medium is the reference site's `Inter-Medium.ttf` as a bundled font asset; Expo's MIT notice and Inter's OFL notice accompany them under `packages/native-canvas/Resources`. System UI text uses SF; code and paths use SF Mono.
 
 ## Tokens
 
-Defined once in `apps/native-host/native/CanvasHost.swift` as `Palette` and `Fonts`.
+Defined once in `packages/native-canvas/Sources/CanvasStyle.swift` as `Palette` and `Fonts`.
 
 | Token | Value | Use |
 | --- | --- | --- |

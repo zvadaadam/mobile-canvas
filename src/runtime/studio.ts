@@ -1,4 +1,5 @@
 import { adapterForDocument } from "./adapters/index";
+import { nativeCanvas } from "./host/canvas-template";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, stat, mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ import { CanvasError } from "./errors";
 import { repository } from "./paths";
 import { cacheDirectory, nativeAppPath } from "./installation";
 import { identityOf, type Operation, type Screen } from "../shared/model";
-import { chooseRouteExample, routeExamples } from "./route-examples";
+import { chooseRouteExample, routeExamples } from "./adapters/expo/route-examples";
 import { paramsForScreenRoute } from "../shared/route-samples";
 
 type Receipt = StudioReport & { receivedAt: number };
@@ -300,7 +301,7 @@ export class NativeStudio {
         if (typeof executable !== "string" || !/^[A-Za-z0-9_-]+$/.test(executable)
           || !stdout.includes(`/${executable}.app/${executable} `) || !stdout.includes(`--host-id ${this.hostId}`))
           throw new CanvasError("studio_identity", "The reported process is not this native canvas.", 409);
-        const source = join(repository, "apps/native-host/capture.swift");
+        const source = nativeCanvas.capture;
         const helper = join(cacheDirectory, `capture-${digest(await readFile(source)).slice(0, 16)}`);
         const built = await stat(helper).catch(() => null);
         if (!built) {

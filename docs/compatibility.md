@@ -10,6 +10,8 @@ Run `npm test`, `npm run check` and `npm run test:compat` after changing mapping
 
 The static command fetches missing pinned commits into `.context/compatibility/repos`, archives source into temporary directories, and never checks out or edits an app's working tree. It tests repeatable maps, stable re-import IDs/metadata, required and forbidden links, non-overlapping arrangement and onboarding flow order. It needs Git access to each repository on a cold run; a failed fetch fails the suite. No app dependency installation is needed for static tests.
 
+External contributors use `npm run test:compat:public`, which selects entries marked `access: public` (Hot Chocolate and Clarity) and reports Workout as not selected. It does not silently skip failed public fetches. The full `npm run test:compat` retains all three maintainer regressions. Public Swift fixtures are checked into `tests/fixtures/swift` and exercised by `npm test` on a Mac with Xcode. The optional private Swift corpus uses `CANVAS_TEST_BETTERMIND=/path/to/pinned/checkout npm run test:compat:swift`; it checks the pinned revision and clean source without modifying that checkout.
+
 ## Fresh native test setup
 
 Clone these repositories once into new directories and check out the exact revisions. If a checkout already exists, verify its revision and use a separate directory if needed; do not overwrite local work.
@@ -49,11 +51,19 @@ To add an app, pin a commit, record its routes/alias root, coverage counts and a
 
 `tests/compatibility/swift-apps.json` records BetterMind at `5f92173576d9e80b83b61a80c08cce77c4cb7ed2`, using the user-provided local checkout. Run `npm run test:compat:swift` on a Mac with that clean pinned checkout. This opt-in test never fetches, checks out, or edits it. It checks 310 Swift input files, 68 recognized destinations, 86 links, 71 state frames, 144 preview declarations, representative flow edges, stable re-import, the Xcode build strategy, five isolated preview candidates and 59 conservative startup blockers, then 63 application-context candidates and provider provenance. The corpus is separate from the portable Expo regression because this private source is not available on every machine.
 
-Open it with `node bin/expo-canvas.mjs open --app /Users/zvada/Developer/mind/bettermind-ios/.conductor/santa-fe-v1 --project .context/bettermind-xcode-canvas --swift-context application`. The derived target retains the 22 package products and Metal resources, and omits its widget and upload phases. Setup requires signing and the optional Metal toolchain. Application context executes real service initialization; it does not supply a signed-in user or guarantee populated states. See [Swift build adapters](swift-xcode-builds.md) for measured results and remaining limits.
+Open it with `node bin/expo-canvas.mjs open --app /path/to/bettermind-ios --project .context/bettermind-xcode-canvas --swift-context application`. The derived target retains the 22 package products and Metal resources, and omits its widget and upload phases. Setup requires signing and the optional Metal toolchain. Application context executes real service initialization; it does not supply a signed-in user or guarantee populated states. See [Swift build adapters](swift-xcode-builds.md) for measured results and remaining limits.
 
 ## Recorded cleanup verification · September 10, 2026
 
 57 tests, runtime and SDK 54 host TypeScript checks, all three pinned static regressions, and the isolated npm package installation test passed. The configured native suite captured all nine frames across Clarity and Hot Chocolate; their images were reviewed. Hot Chocolate's list and details were populated. Clarity retained its subscription/session-state placeholders and an in-app speech-unavailable message; its Home carousel cards still lack text. These are visible limitations, not proof of full fidelity or a process crash.
+
+## Native architecture cleanup · September 11, 2026
+
+110 tests and both TypeScript checks pass. Native unit coverage now compiles the shared UIKit shell and Swift renderer under both Swift 6 default isolation modes, decodes sessions produced by the TypeScript store, and exercises stale reads, selection ordering, malformed messages, cancellation, reconnects and viewport geometry. The public two-app corpus, full three-app corpus, configured private Swift regression and isolated npm installation checks pass. The new public CI workflow has been validated locally; a hosted Actions run is still pending publication of the branch.
+
+Fresh native builds and MCP captures cover six Clarity states, three Hot Chocolate states, two composed SceneLab pages and one authored Expo screen. Images were inspected. Hot Chocolate remains populated; Clarity still has sparse Home cards, service/data placeholders and its speech-unavailable UI. SceneLab retains its parent gradient, Metal rendering and independent page states. Clicking its native Continue button moved focus to the second frame while the first stayed pinned. A Swift reset was acknowledged without changing document history or the other page's state. Captures and logs for this pass are local under `.context/verification/cleanup-*` and `.context/cleanup-*`.
+
+One initial watcher test timed out while native compilers were busy. It passed on its own and in subsequent complete suite runs; the timeout was not weakened. No signed hosted build or second-Mac installation is claimed by these checks.
 
 ## Recorded limitations
 

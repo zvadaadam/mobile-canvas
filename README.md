@@ -1,12 +1,14 @@
 # Expo Canvas
 
-A native macOS canvas for designing Expo apps with real code. Screens run side by side as live iOS surfaces: arrange them, click through native controls, follow the app flow between frames, and let a coding agent iterate through the CLI or MCP.
+A native Mac canvas for exploring and designing real mobile interfaces. Expo screens and experimental SwiftUI/UIKit previews run side by side as live iOS surfaces: arrange them, try native controls, inspect the app flow, and let a coding agent iterate through the CLI or MCP.
+
+Start with [installation](docs/distribution.md), [contributing and repository structure](CONTRIBUTING.md), or the [documentation index](docs/README.md). The current executable is `expo-canvas`; the proposed Mobile Canvas rename has not shipped.
 
 The experimental [npm developer package](docs/distribution.md) can be built with `npm run package` and verified with `npm run test:package`. `expo-canvas setup --app /path/to/app --install --team YOURTEAMID` guides Mac setup, saves the team and installs frozen app dependencies before launch. Native execution still needs Apple silicon, Xcode and development signing; this is not a standalone Mac installer.
 
 ![Expo Canvas showing the Expo Workout app as a flow of live screens](docs/native-studio.png)
 
-The canvas is an Expo SDK 54 app that runs directly on an Apple-silicon Mac, so screens use actual UIKit, SwiftUI and Liquid Glass. No Simulator, browser or Electron shell is involved. The screens inside the frames are ordinary React Native code; the shell around them is thin Swift.
+The shared Swift canvas shell runs directly on an Apple-silicon Mac with actual UIKit, SwiftUI and Liquid Glass. The authored Expo host pins SDK 54; linked Expo apps use an SDK-matched host, and supported Swift apps use their own generated native target. Screens retain their original React Native or Swift code. See [Swift support and limits](docs/swift-xcode-builds.md).
 
 ## Open a project
 
@@ -64,10 +66,10 @@ Existing-app tests fetch pinned [Hot Chocolate](https://github.com/expo/hot-choc
 npm run check          # runtime, CLI, MCP
 npm run check:studio   # the native host's TypeScript
 npm test               # transactions, import, review, arrange, studio protocol
-npm run test:compat    # pinned Clarity, Hot Chocolate and Workout maps
+npm run test:compat:public # pinned Clarity and Hot Chocolate maps; no private access
 ```
 
-[Validation](docs/validation.md) records what was observed on a real Mac and what is still unverified. The [compatibility workflow](docs/compatibility.md) adds native MCP captures for Hot Chocolate and Clarity. Known limits: up to 32 frames per project; linked previews isolate their JavaScript runtimes; exact iPhone fidelity is not established. SDK 57 can still crash during a full native reload after changing a component export.
+[Validation](docs/validation.md) records what was observed on a real Mac and what is still unverified. Maintainers also run `npm run test:compat`, including the private Workout reference. The [compatibility workflow](docs/compatibility.md) adds native MCP captures for Hot Chocolate and Clarity. Known limits: Expo hosts support up to 32 frames, Swift up to 128; linked Expo previews isolate their JavaScript runtimes, while Swift globals remain shared. Exact iPhone fidelity is not established. SDK 57 can still crash during a full native reload after changing a component export.
 
 ## Map an existing app without adapters
 

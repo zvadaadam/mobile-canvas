@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
 import { observedHref, paramsForRoute } from '../src/shared/route-samples';
-import { chooseRouteExample } from '../src/runtime/route-examples';
+import { chooseRouteExample } from '../src/runtime/adapters/expo/route-examples';
 import { ScreenSchema } from '../src/shared/model';
 import { observePress, getRouteDestinations } from '../apps/linked-host/RouteObserver';
 

@@ -43,7 +43,8 @@
       "sign-in",
       "name",
       "index"
-    ]
+    ],
+    "access": "public"
   },
   {
     "id": "hot-chocolate",
@@ -73,7 +74,8 @@
       "locations-2"
     ],
     "offline": false,
-    "orderedRows": []
+    "orderedRows": [],
+    "access": "public"
   },
   {
     "id": "workout",
@@ -95,6 +97,7 @@
     "nativeScreens": [],
     "offline": false,
     "orderedRows": [],
-    "nativeUnavailableReason": "Source-only regression at this revision; the curated SDK 54 workout export was removed. No drop-in native coverage is claimed."
+    "nativeUnavailableReason": "Source-only regression at this revision; the curated SDK 54 workout export was removed. No drop-in native coverage is claimed.",
+    "access": "private"
   }
 ]

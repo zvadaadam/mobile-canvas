@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { repository } from './paths';
 import { signingTeam } from './installation';
-import { appDependencies } from './app-dependencies';
+import { appDependencies } from './adapters/expo/app-dependencies';
 import { createRequire } from 'node:module';
 const { excluded, iconPackages } = createRequire(import.meta.url)(join(repository, 'apps/linked-host/design/environment.cjs')) as { excluded: string[]; iconPackages: string[] };
 const execute = promisify(execFile);
