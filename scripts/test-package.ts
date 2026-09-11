@@ -14,6 +14,9 @@ const { manifest, tarball } = await packageCanvas();
 const files = manifest.files.map((file: { path: string }) => file.path) as string[];
 for (const file of files) assert.ok(!/(^|\/)(\.context|\.conductor|node_modules|ios|build|designs|\.env[^/]*|\.npmrc)(\/|$)|\.(p12|mobileprovision)$/.test(file), `private/build material included: ${file}`);
 const requiredInputs = [
+  'LICENSE',
+  'THIRD_PARTY_NOTICES.md',
+  'scripts/prepare-package.ts',
   'bin/expo-canvas.mjs',
   'src/runtime/cli.ts',
   'src/runtime/host/build.ts',
@@ -49,6 +52,10 @@ try {
   assert.equal(JSON.parse(await readFile(join(directory, 'settings/settings.json'), 'utf8')).team, 'ABCDEFGHIJ');
 
   const installed = join(prefix, 'lib/node_modules/expo-canvas');
+  assert.equal(await readFile(join(installed, 'apps/native-host/dependencies.lock'), 'utf8'), await readFile(join(repository, 'apps/native-host/package-lock.json'), 'utf8'), 'Packed host dependencies must match the canonical lock');
+  const installedManifest = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
+  assert.equal(installedManifest.license, 'MIT');
+  assert.notEqual(installedManifest.private, true);
   for (const dependency of ['tsx', 'typescript']) await readFile(join(installed, 'node_modules', dependency, 'package.json'));
   const app = join(directory, 'app'), project = join(directory, 'project');
   await mkdir(join(app, 'app'), { recursive: true });

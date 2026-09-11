@@ -1,23 +1,19 @@
 # Install Expo Canvas on a Mac
 
-This is a local npm package for Apple-silicon Macs. It installs the CLI, MCP server and native host templates. Canvas builds and signs the iOS renderer on your Mac using Xcode. There is no npm publication, notarized installer or cloud build in this workflow.
+This is a local npm package for Apple-silicon Macs. It installs the CLI, MCP server and native host templates. Canvas builds and signs the iOS renderer on your Mac using Xcode. The versioned GitHub release is installable through npm; npm-registry publication is separate. There is no notarized installer or cloud build in this workflow.
 
-## Share the package
+## Install the release
 
-From the source checkout:
-
-```sh
-npm ci
-npm run package
-npm run test:package
-```
-
-Give testers `.context/distribution/expo-canvas-0.1.0.tgz`. They do not need this repository. Install it using a user-managed Node installation (no sudo):
+Use a user-managed Node installation (no sudo):
 
 ```sh
-npm install --global /path/to/expo-canvas-0.1.0.tgz
+npm install --global https://github.com/zvadaadam/expo-canvas/releases/download/v0.1.0/expo-canvas-0.1.0.tgz
 expo-canvas setup
 ```
+
+The release includes `SHA256SUMS` for the downloadable archive. You do not need a source checkout or npm account to install it. To update, install the URL for the new release; `npm update -g` does not track these GitHub release URLs. Remove the executable with `npm uninstall --global expo-canvas`; your projects and per-user caches are retained.
+
+Maintainers can build exactly the same package locally with `npm ci` and `npm run package`. Ordinary `npm pack` and `npm publish` also prepare the required native host dependency snapshot through `prepack`. Git dependency installs run that hook too. No package install hook builds an app or configures your Mac.
 
 The setup checklist explains missing requirements. Native previews require Apple silicon, arm64 Node 22.14+, full compatible Xcode with its initial setup completed, CocoaPods, and development signing configured in Xcode. Bun is needed for apps using Bun lockfiles or patches. Install Expo in the app, not globally; a separate global Expo CLI is unnecessary.
 
@@ -109,4 +105,11 @@ The slow native package test installs a tarball outside the checkout, makes its 
 
 A local package passing these checks is suitable for a supervised developer trial, not proof that four other Macs are already configured. Run setup on each tester's machine. Known SDK 57 full-reload crashes and other preview fidelity limitations remain documented in [compatibility](compatibility.md).
 
-The onboarding currently lives in the npm command's setup flow. A native welcome window before Xcode/signing are available is not included. Publishing to npm and a notarized Mac bootstrap are later distribution steps. Copying today's development-signed iOS wrapper into a DMG is not a verified public Mac installation path; see [Apple's distribution comparison](https://developer.apple.com/macos/distribution/).
+The onboarding currently lives in the npm command's setup flow. A native welcome window before Xcode/signing are available is not included. A shorter registry command (`npm install -g expo-canvas`) requires npm publication; it is not the installation command for this GitHub release. A notarized Mac bootstrap remains a separate distribution step. Copying today's development-signed iOS wrapper into a DMG is not a verified public Mac installation path; see [Apple's distribution comparison](https://developer.apple.com/macos/distribution/).
+
+## Maintainer release procedure
+
+1. Run the public CI checks and installed-package smoke test on the exact release commit. Native acceptance uses the separate Mac test above.
+2. Run `npm run package`, compute `shasum -a 256 expo-canvas-<version>.tgz > SHA256SUMS` in the output directory, and attach both files to a GitHub release tagged `v<version>` at that tested commit. Do not use GitHub's automatically generated source archive as the npm artifact.
+3. Test the public release URL by installing into a fresh npm prefix, then run its CLI and MCP. Existing releases are immutable: bump the version for changed bytes.
+4. For npm-registry publication, sign in with `npm login`, confirm package-name ownership/access, and publish the same tested tarball with `npm publish /path/to/expo-canvas-<version>.tgz --access public`. Complete any npm browser/2FA challenge locally; never put credentials in this repository. Update the installation instructions only after verifying the registry package.

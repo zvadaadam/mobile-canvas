@@ -1,7 +1,6 @@
 {
   "name": "expo-canvas",
   "version": "0.1.0",
-  "private": true,
   "description": "A local canvas for designing real Expo interfaces with AI agents.",
   "type": "module",
   "bin": {
@@ -24,7 +23,8 @@
     "test:compat:swift": "node --import tsx scripts/test-swift-compatibility.ts",
     "test:package": "node --import tsx scripts/test-package.ts",
     "package": "node --import tsx scripts/package.ts",
-    "test:package:native": "node --import tsx scripts/test-package-native.ts"
+    "test:package:native": "node --import tsx scripts/test-package-native.ts",
+    "prepack": "node --import tsx scripts/prepare-package.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
@@ -54,6 +54,21 @@
     "apps/native-host/tsconfig.json",
     "apps/native-host/native/ExpoRenderer.swift",
     "docs/",
-    "apps/native-host/dependencies.lock"
-  ]
+    "apps/native-host/dependencies.lock",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "scripts/prepare-package.ts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zvadaadam/expo-canvas.git"
+  },
+  "homepage": "https://github.com/zvadaadam/expo-canvas#readme",
+  "bugs": {
+    "url": "https://github.com/zvadaadam/expo-canvas/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

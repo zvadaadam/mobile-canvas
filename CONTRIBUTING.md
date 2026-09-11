@@ -74,4 +74,4 @@ After host/resolver changes, open the listed native experiments and run `npm run
 - Keep source discovery separate from execution and preview availability. Explain unsupported cases instead of inventing records or implying complete coverage.
 - Include the relevant tests and native evidence in a change description. Avoid committing credentials, local signing settings or private app sources.
 
-The repository is being prepared for public release. Publication, project licensing and branding are separate release decisions; this guide does not claim they are complete.
+Contributions are provided under the [MIT License](LICENSE). Keep the [third-party notices](THIRD_PARTY_NOTICES.md) with redistributed assets. See [distribution](docs/distribution.md) for the release procedure and remaining native installation requirements.
