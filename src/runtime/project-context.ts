@@ -1,3 +1,4 @@
+import { swiftProjectCandidates } from "./adapters/swift/project";
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -11,5 +12,6 @@ export async function projectContext(directory: string): Promise<{ project?: str
     const pkg = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'));
     if (pkg.dependencies?.expo || pkg.devDependencies?.expo) return { app: directory };
   } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  if ((await swiftProjectCandidates(directory)).length) return {app:directory};
   return {};
 }

@@ -18,7 +18,7 @@ export async function startMcp(client: CanvasClient) {
     { name: "expo-canvas", version: "0.1.0" },
     {
       instructions:
-        "Expo Canvas is a native macOS canvas that runs real Expo screens side by side. Read the canvas before editing; carry workspaceId and sequence into every mutation. Screens are ordinary TSX under screens/, components/ or lib/; @expo-canvas/preview gives mock state and navigation by screen key, and each screen's links draw the app flow. One canvas_batch is one undoable transaction; source.write needs the hash from canvas_read_source. canvas_studio_open opens the canvas (authored Expo 54 or linked Expo 56/57, iOS on Mac, up to 32 frames); pass screen to fit and center one whole frame. Use canvas_route_map for linked app screen IDs, then canvas_inspect_screen to focus a frame and receive its native image and metadata with visible agent presence. Use canvas_studio_capture for a canvas overview; use native computer tools for pointer interaction. canvas_import brings an existing Expo app onto the canvas: prefer link so the app's own source runs in place and lib/ holds only overrides keyed by app path; keep the original app untouched, review with canvas_origin_diff and carry files back only with canvas_origin_apply when asked. Keep themes scoped per screen, never global. Each screen's notes describe purpose, fixture states, interactions and destinations. No cloud or media generation is involved.",
+        "Expo Canvas is a native macOS canvas that runs real Expo screens side by side. Read the canvas before editing; carry workspaceId and sequence into every mutation. Screens are ordinary TSX under screens/, components/ or lib/; @expo-canvas/preview gives mock state and navigation by screen key, and each screen's links draw the app flow. One canvas_batch is one undoable transaction; source.write needs the hash from canvas_read_source. canvas_studio_open opens the canvas (authored Expo 54 or linked Expo 56/57, iOS on Mac, up to 32 frames); pass screen to fit and center one whole frame. Use canvas_route_map for linked app screen IDs, then canvas_inspect_screen to focus a frame and receive its native image and metadata with visible agent presence. Use canvas_studio_capture for a canvas overview; use native computer tools for pointer interaction. canvas_import brings an existing Expo app onto the canvas: prefer link so the app's own source runs in place and lib/ holds only overrides keyed by app path; keep the original app untouched, review with canvas_origin_diff and carry files back only with canvas_origin_apply when asked. Keep themes scoped per screen, never global. Each screen's notes describe purpose, fixture states, interactions and destinations. No cloud or media generation is involved. Experimental Swift projects use nativePreview metadata: canvas_import discovers source-backed screen flows and reuses existing preview factories; missing preview data remains visible. Swift source overrides use source.write plus native.override with the original source hash. Re-import refreshes Xcode target membership. Swift edits require native rebuild/relaunch; ordinary Swift app navigation is not yet pinned.",
     },
   );
   const register = (
@@ -108,7 +108,7 @@ export async function startMcp(client: CanvasClient) {
   );
   register(
     "canvas_read_route_source",
-    "Read the actual linked app TSX for a screen ID from canvas_route_map, or its active project override. Returns code, hash, original app path and preview source. The original app is read-only: write an experiment override with source.write plus resolver.update, then reopen once for the resolver; subsequent TSX edits hot reload.",
+    "Read the actual linked app TSX or Swift for a screen ID from canvas_route_map, or its active project override. Returns code, hash, original app path and preview source. The original app is read-only: write an experiment override with source.write plus resolver.update, then reopen once for the resolver; subsequent TSX edits hot reload.",
     z.object({ screenId: Id }),
     ({ screenId }) => client.request(`/route-source?screenId=${encodeURIComponent(screenId)}`),
     true,
@@ -121,16 +121,43 @@ export async function startMcp(client: CanvasClient) {
   );
   register(
     "canvas_import",
-    "Import an Expo app in one undoable transaction. Prefer link: true to keep source in place. With map: true, discover Expo Router routes and content navigation and arrange their frames. Set preview: true to render actual Expo 56/57 routes with their providers and native navigation in a separate SDK-matched host; native execution/build happens only on studio open. Protected routes are visible and SQLite is isolated per frame; real dynamic IDs are observed from rendered links into props.params. Shared navigator contexts use one frame per source. Without preview, map creates explicitly labeled metadata cards without executing app code. With offline: true, use the explicit design environment: disconnected Clerk/Convex/purchases/telemetry adapters and public icon substitutes, recorded in native screen state. No API keys are needed for supported local screens; remote records and store-hosted UI remain unavailable. No app source is copied or modified. Re-import adds missing routes, upgrades untouched metadata cards when enabling preview, and preserves authored source, IDs, notes, links and placement. Reopen after resolver changes.",
+    "Import an Expo or supported Swift app in one undoable transaction. Swift targets produce a source-backed screen map independently of preview availability; only registered factories supply live UI. Prefer link: true to keep source in place. With map: true, discover Expo Router routes and content navigation and arrange their frames. Set preview: true to render actual Expo 56/57 routes with their providers and native navigation in a separate SDK-matched host; native execution/build happens only on studio open. Protected routes are visible and SQLite is isolated per frame; real dynamic IDs are observed from rendered links into props.params. Shared navigator contexts use one frame per source. Without preview, map creates explicitly labeled metadata cards without executing app code. With offline: true, use the explicit design environment: disconnected Clerk/Convex/purchases/telemetry adapters and public icon substitutes, recorded in native screen state. No API keys are needed for supported local screens; remote records and store-hosted UI remain unavailable. No app source is copied or modified. Re-import adds missing routes, upgrades untouched metadata cards when enabling preview, and preserves authored source, IDs, notes, links and placement. Reopen after resolver changes.",
     ImportSchema,
     (value) => client.request("/import", value),
   );
   register(
+    "canvas_native_preview_catalog",
+    "Read a Swift app's existing component previews, source evidence for animations and bundled image assets without running app code. Add selected previews with canvas_import.swiftPreviews using a label or factory ID; they stay separate from navigation. Explicit per-frame native.imageFixtures can feed a bundled asset to supported Kingfisher views. An animation hint is not proof of visible motion.",
+    z.object({}),
+    () => client.request('/native/catalog',{}),
+  );
+  register(
     "canvas_route_map",
-    "Read the app sitemap: stable screen IDs/keys, route and original source file, layouts, current params and their observed example, flow links and notes. Use canvas_inspect_screen with a screen ID for visible focus, a native image and metadata; canvas_studio_open or canvas_studio_control can focus without capture. Frames stay on their assigned routes; navigation focuses another frame. liveAppPreview means rendering is configured; check studio state and capture for execution/pixels. Missing dynamic examples are explicitly waiting-for-link.",
+    "Read the app sitemap: stable screen IDs/keys, route and original source file, layouts, current params and their observed example, flow links and notes. Use canvas_inspect_screen with a screen ID for visible focus, a native image and metadata; canvas_studio_open or canvas_studio_control can focus without capture. Expo routes are pinned; Swift navigation limits are reported per route. liveAppPreview means rendering is configured; check studio state and capture for execution/pixels. Missing dynamic examples are explicitly waiting-for-link.",
     z.object({}),
     async () => {
       const session = await client.read();
+      if (session.project.document.nativePreview) {
+        const screens = session.project.document.screenIds.map(id=>session.project.document.screens[id]);
+        return {kind: "swift-screen-map", liveAppPreview: !session.project.document.nativePreview.buildIssues?.length, adapter: "swift-ios", origin: session.project.document.origin,
+          buildIssues: session.project.document.nativePreview.buildIssues ?? [],
+          buildStrategy: session.project.document.nativePreview.buildStrategy ?? 'standalone',
+          context: session.project.document.nativePreview.context ?? 'isolated',
+          buildNotes: session.project.document.nativePreview.buildNotes ?? [],
+          coverage: {visualFrames: screens.length, sourceDestinations: new Set(screens.filter(s => (s.props.native as any)?.symbol).map(s => {const native=s.props.native as any;return `${native.file}:${native.symbol}`;})).size,
+            composedStates: screens.filter(s => (s.props.native as any)?.scene).length,
+            recipeFactories: screens.filter(s => (s.props.native as any)?.recipe).length,
+            previewFactories: screens.filter(s => (s.props.native as any)?.factory && !(s.props.native as any)?.issue).length,
+            needsPreviewData: screens.filter(s => (s.props.native as any)?.issue && !['build-integration','app-startup'].includes((s.props.native as any)?.blocker?.kind)).length,
+            needsAppStartup: screens.filter(s => (s.props.native as any)?.blocker?.kind === 'app-startup').length,
+            needsBuildIntegration: screens.filter(s => (s.props.native as any)?.blocker?.kind === 'build-integration').length,
+            blockers: screens.filter(s => (s.props.native as any)?.blocker).map(s => ({key:s.key, ...(s.props.native as any).blocker})),
+            discovery: "SwiftSyntax: root composition, direct/value navigation, sheets, fullscreen covers, recognized coordinator calls and switch-selected panes. Source evidence is inferred; dynamic routing and arbitrary local states are not exhaustive.",
+            data: "Existing previews and inferred recipes reuse app-local demo objects or default initializers; recipe provenance is in each route. Optional inputs may be nil and action callbacks inert. Missing factories remain in the map. App services and global state are not sandboxed. A factory is not proof of populated or reachable UI."},
+          routes: screens.map(s => ({...s, native: s.props.native, capabilities: {
+            navigation: (s.props.native as any)?.scene ? "The assigned parent selector is pinned. Recognized case changes request focus on the corresponding frame; other model mutations and arbitrary navigation remain local." : "Catalog destination buttons and explicit CanvasPreviewContext focus frames. Uninstrumented app navigation remains local.",
+            reload: "native rebuild", state: "frame-local; native globals shared"}}))};
+      }
       const mapped = session.project.document.screenIds.map(id => session.project.document.screens[id]).filter(screen => screen.props.route);
       return {
         coverage: { visualFrames: mapped.length, sourceRoutes: new Set(mapped.map(screen => (screen.props.route as any).file)).size, pinnedSteps: mapped.filter(screen => (screen.props.route as any).step).length,

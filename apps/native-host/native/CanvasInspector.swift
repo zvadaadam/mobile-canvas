@@ -269,6 +269,18 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     let document = project["document"] as? [String: Any] ?? [:]
     let offline = (document["appPreview"] as? [String: Any])?["offline"] as? Bool == true
     var previewText = offline ? "Offline preview · Local data only. Connected services are unavailable." : ""
+    if let native = document["nativePreview"] as? [String: Any] {
+      previewText = native["context"] as? String == "application"
+        ? "App context · Original service setup runs. Services are shared across previews."
+        : "Isolated previews · Original app startup is not run."
+    }
+    if let selected, let entry = (document["screens"] as? [String: [String: Any]])?[selected],
+       let native = (entry["props"] as? [String: Any])?["native"] as? [String: Any] {
+      if let providers = native["previewProviders"] as? [[String: Any]], !providers.isEmpty {
+        previewText += "\nState from app previews: " + providers.compactMap { $0["type"] as? String }.joined(separator: ", ") + "."
+      }
+      for capability in native["deviceCapabilities"] as? [String] ?? [] { previewText += "\n" + capability }
+    }
     if let selected, let entry = (document["screens"] as? [String: [String: Any]])?[selected],
        let route = (entry["props"] as? [String: Any])?["route"] as? [String: Any] {
       if let step = route["step"] as? [String: Any], let index = step["index"] as? Int, let count = step["count"] as? Int {
@@ -312,7 +324,9 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     positionX.text = String(describing: entry["x"] ?? 0)
     positionY.text = String(describing: entry["y"] ?? 0)
     var editableProps = entry["props"] as? [String: Any] ?? [:]
-    if let route = editableProps["route"] as? [String: Any], route["file"] is String { editableProps.removeValue(forKey: "route") }
+    for key in ["route", "native"] {
+      if let metadata = editableProps[key] as? [String: Any], metadata["file"] is String { editableProps.removeValue(forKey: key) }
+    }
     let data = try? JSONSerialization.data(withJSONObject: editableProps, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     propsField.text = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     notesField.text = entry["notes"] as? String ?? ""
@@ -331,7 +345,9 @@ final class CanvasInspector: UIView, UITextViewDelegate {
       guard let x = Double(positionX.text ?? ""), let y = Double(positionY.text ?? ""), x.isFinite, y.isFinite else {
         throw NSError(domain: "ExpoCanvas", code: 1, userInfo: [NSLocalizedDescriptionKey: "Enter valid X and Y positions."])
       }
-      if let route = (baseline["props"] as? [String: Any])?["route"] as? [String: Any], route["file"] is String { props["route"] = route }
+      for key in ["route", "native"] {
+        if let metadata = (baseline["props"] as? [String: Any])?[key] as? [String: Any], metadata["file"] is String { props[key] = metadata }
+      }
       let patch: [String: Any] = ["name": nameField.text ?? "", "x": x, "y": y, "props": props, "notes": notesField.text ?? ""]
       saving = true
       editor.isUserInteractionEnabled = false

@@ -16,7 +16,8 @@ export function arrangeByFlow(document: CanvasDocument, gapX = 150, gapY = 200, 
   const stepGroups = new Map<string, Screen[]>();
   const stepIds = new Set<string>();
   for (const screen of screens) {
-    const step = (screen.props.route as any)?.step;
+    const scene = (screen.props.native as any)?.scene;
+    const step = (screen.props.route as any)?.step ?? (scene && {routeKey:scene.id,index:scene.index}) ?? ((screen.props.native as any)?.component && {routeKey:'native-components',index:order.indexOf(screen.id)});
     if (!step || typeof step.routeKey !== 'string' || !Number.isInteger(step.index)) continue;
     stepIds.add(screen.id);
     stepGroups.set(step.routeKey, [...(stepGroups.get(step.routeKey) ?? []), screen]);
@@ -95,9 +96,15 @@ export function arrangeByFlow(document: CanvasDocument, gapX = 150, gapY = 200, 
   let y = 0;
   const placedSteps = new Set<string>();
   const placeSteps = (key: string, members: Screen[]) => {
-    members.sort((a, b) => (a.props.route as any).step.index - (b.props.route as any).step.index);
+    const index=(screen:Screen)=>(screen.props.route as any)?.step?.index ?? (screen.props.native as any)?.scene?.index ?? order.indexOf(screen.id);
+    members.sort((a, b) => index(a) - index(b));
     let x = 0;
-    for (const screen of members) { positions.set(screen.id, { x, y }); x += screen.width + gapX; }
+    for (const [index,screen] of members.entries()) {
+      // Source cases are variants, not evidence of a navigation sequence.
+      // Keep large native state families in a compact, readable grid.
+      if(index && index%6===0 && ((screen.props.native as any)?.scene || (screen.props.native as any)?.component)) {x=0;y+=Math.max(...members.map(s=>s.height))+header+gapY;}
+      positions.set(screen.id, { x, y }); x += screen.width + gapX;
+    }
     y += Math.max(...members.map(screen => screen.height)) + header + gapY;
     placedSteps.add(key);
   };

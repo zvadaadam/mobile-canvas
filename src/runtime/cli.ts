@@ -1,3 +1,5 @@
+import { detectProjectAdapter } from "./adapters/index";
+import { loadSwiftProject } from "./adapters/swift/project";
 import { parseArgs } from "node:util";
 import { readFile, open, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -21,6 +23,8 @@ const { values, positionals } = parseArgs({
     map: { type: "boolean" },
     preview: { type: "boolean" },
     offline: { type: "boolean" },
+    "swift-context": { type: "string" },
+    "swift-preview": { type: "string", multiple: true },
     port: { type: "string" },
     name: { type: "string" },
     key: { type: "string" },
@@ -63,12 +67,15 @@ const help = `Expo Canvas — design real Expo screens on a native canvas
   expo-canvas build [--team <id>] [--incremental]            # build the authored-screen host
   expo-canvas open|mcp [--app <app>] [--project <separate-dir>] # automatic native Expo 56/57 route previews
     --offline                                            # design preview: disconnected services, no API keys
+    --swift-preview MindIcon                            # add an app-authored component preview; repeat to select more
+    --swift-context application|isolated                  # Swift: app initializer/services or independent previews (default)
   expo-canvas map [--app <app>] [--project <separate-dir>]     # source-only route mapping, no execution
   expo-canvas init --project <dir> --name <name>
   expo-canvas import --project <dir> --from <app> [--link] [--map] [--name <name>] [--include a,b] [--exclude a,b] [--modules pkg,pkg]
   expo-canvas open --project <dir> [--screen <key>] [--port <n>]   # the native canvas; --screen reveals one screen at 100%
   expo-canvas serve --project <dir> [--port 4182]                  # the runtime alone, for CLI and MCP
   expo-canvas read|selection|doctor|undo|redo|arrange --project <dir>
+  expo-canvas previews --project <dir>                     # Swift previews, animation evidence and local image assets
   expo-canvas batch --project <dir> [--file command.json]          # otherwise stdin; see docs/agents.md
   expo-canvas screen add --project <dir> --key <key> --name <name> [--file component.tsx | --source screens/existing.tsx]
   expo-canvas source read <screens/file.tsx> --project <dir>
@@ -110,6 +117,17 @@ async function main() {
     return;
   }
   if (!values.project && !values.app) throw new Error("Run this command from an Expo app or Canvas project root, or pass --project <directory> / --app <directory>.");
+  const hasSwiftImportOptions = values['swift-context'] !== undefined || values['swift-preview'] !== undefined;
+  if (hasSwiftImportOptions) {
+    if (!['open', 'map', 'mcp', 'import'].includes(command)) throw new Error('Use --swift-context and --swift-preview with open, map, mcp or import.');
+    if (values['swift-context'] !== undefined && !['isolated', 'application'].includes(values['swift-context'])) throw new Error('Choose --swift-context isolated or application.');
+    if (values.offline && values['swift-context'] === 'application') throw new Error('Application context runs real app services; it cannot be combined with --offline.');
+    if (!values.app && values.project && ['open', 'map', 'mcp'].includes(command)) {
+      const manifest = JSON.parse(await readFile(resolve(values.project, 'expo-canvas.json'), 'utf8'));
+      if (!manifest.document.nativePreview) throw new Error('--swift-context and --swift-preview require a Swift project.');
+      values.app = manifest.document.origin.path;
+    }
+  }
   if (command === "map" && !values.app) throw new Error("Pass --app <Expo app directory> to map its routes.");
   if (values.app && !["open", "map", "mcp"].includes(command)) throw new Error("Use --app with open, map or mcp; use --project for other commands.");
   const app = values.app ? await appProject(resolve(values.app)) : undefined;
@@ -118,17 +136,19 @@ async function main() {
     if (project === app.from || project.startsWith(app.from + "/") || app.from.startsWith(project + "/"))
       throw new Error("Choose a project outside the source app. By default --app uses ~/.expo-canvas/apps/.");
     if (!await readFile(resolve(project, "expo-canvas.json")).then(() => true, () => false)) {
-      const store = await ProjectStore.initialize(project, "App route map");
+      const swift = await detectProjectAdapter(app.from) === "swift-ios";
+      const store = await ProjectStore.initialize(project, "App screen map", swift ? {app: app.from, spec: await loadSwiftProject(app.from)} : undefined);
       await store.close();
     }
   }
   const mapApp = async (client: CanvasClient) => {
     const session = await client.read();
+    if (hasSwiftImportOptions && !session.project.document.nativePreview) throw new Error('--swift-context and --swift-preview require a Swift project.');
     if (session.project.document.origin && session.project.document.origin.path !== app!.from)
       throw new Error("This project is linked to a different app.");
-    if (command === "map" || !session.project.document.origin || !session.project.document.appPreview || (values.offline !== undefined && !!session.project.document.appPreview.offline !== values.offline)) {
-      const result = await client.request("/import", { ...identityOf(session), requestId: randomUUID(), from: app!.from, link: true, map: true, preview: command !== "map", offline: values.offline ?? false });
-      console.error(`Mapped ${result.import.routeMap.frames.length} routes · ${project}${command === "map" ? " · static map" : " · native app preview"}.`);
+    if (command === "map" || hasSwiftImportOptions || session.project.document.screenIds.length === 0 || !session.project.document.origin || (!session.project.document.appPreview && !session.project.document.nativePreview) || (values.offline !== undefined && !!session.project.document.appPreview?.offline !== values.offline)) {
+      const result = await client.request("/import", { ...identityOf(session), requestId: randomUUID(), from: app!.from, link: true, map: true, preview: command !== "map", offline: values.offline ?? false, swiftContext:values['swift-context'],swiftPreviews:values['swift-preview'] });
+      console.error(`Mapped ${(result.import.routeMap.frames?.length ?? result.import.routeMap.nodes.length)} ${session.project.document.nativePreview ? "Swift destinations" : "routes"} · ${project}${command === "map" ? " · static map" : " · native app preview"}.`);
       return result;
     }
   };
@@ -222,6 +242,7 @@ async function main() {
     return;
   }
   if (command === "read") return output(await client.read());
+  if (command === "previews") return output(await client.request('/native/catalog',{}));
   if (command === "doctor") return output(await doctor(client));
   if (command === "selection") return output((await client.read()).selection);
   if (command === "batch")
@@ -252,6 +273,8 @@ async function main() {
         map: values.map ?? false,
         preview: values.preview ?? false,
         offline: values.offline ?? false,
+        swiftContext: values['swift-context'],
+        swiftPreviews: values['swift-preview'],
       }),
     );
   }
@@ -309,7 +332,7 @@ async function openNativeCanvas(client: CanvasClient, screenKey?: string) {
   const session = await client.read();
   const screen = screenKey ? screenIn(session, screenKey) : undefined;
   const opened = await client.request("/studio/open", { ...identityOf(session), ...(screen ? { screen: screen.id } : {}) });
-  const deadline = Date.now() + (session.project.document.appPreview ? 30 * 60_000 : 150_000);
+  const deadline = Date.now() + ((session.project.document.appPreview || session.project.document.nativePreview) ? 30 * 60_000 : 150_000);
   let lastProgress = "";
   while (Date.now() < deadline) {
     const state = await client.request("/studio/state");

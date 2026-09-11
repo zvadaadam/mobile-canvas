@@ -45,10 +45,37 @@ Also exercise the changed interaction in the native window. For error recovery, 
 
 To add an app, pin a commit, record its routes/alias root, coverage counts and a few source-supported required/forbidden edges in the corpus. Add representative native screen keys and a separate project path. Static and native checks are complementary; neither claims exhaustive runtime state coverage.
 
-## Latest cleanup verification · September 10, 2026
+## Private Swift regression
+
+`tests/compatibility/swift-apps.json` records BetterMind at `5f92173576d9e80b83b61a80c08cce77c4cb7ed2`, using the user-provided local checkout. Run `npm run test:compat:swift` on a Mac with that clean pinned checkout. This opt-in test never fetches, checks out, or edits it. It checks 310 Swift input files, 68 recognized destinations, 86 links, 71 state frames, 144 preview declarations, representative flow edges, stable re-import, the Xcode build strategy, five isolated preview candidates and 59 conservative startup blockers, then 63 application-context candidates and provider provenance. The corpus is separate from the portable Expo regression because this private source is not available on every machine.
+
+Open it with `node bin/expo-canvas.mjs open --app /Users/zvada/Developer/mind/bettermind-ios/.conductor/santa-fe-v1 --project .context/bettermind-xcode-canvas --swift-context application`. The derived target retains the 22 package products and Metal resources, and omits its widget and upload phases. Setup requires signing and the optional Metal toolchain. Application context executes real service initialization; it does not supply a signed-in user or guarantee populated states. See [Swift build adapters](swift-xcode-builds.md) for measured results and remaining limits.
+
+## Recorded cleanup verification · September 10, 2026
 
 57 tests, runtime and SDK 54 host TypeScript checks, all three pinned static regressions, and the isolated npm package installation test passed. The configured native suite captured all nine frames across Clarity and Hot Chocolate; their images were reviewed. Hot Chocolate's list and details were populated. Clarity retained its subscription/session-state placeholders and an in-app speech-unavailable message; its Home carousel cards still lack text. These are visible limitations, not proof of full fidelity or a process crash.
 
 ## Recorded limitations
 
 Prior verification captured twelve frames including the now-removed authored Workout export. Current configured native coverage is nine frames across two upstream apps; do not count the historical Workout captures as current drop-in coverage. A previous native run hit a Hot Chocolate inspection timeout and one startup abort before a successful reopen/retry. The SDK 57 full-reload crash above remains unresolved. Passing captures do not establish native lifecycle stability or exhaustive visual fidelity.
+
+BetterMind’s application-context native run captured all 75 mapped frames: 66 mounted factories and 9 explicit requirements. Three mounted previews remained blank/background-only and several others had incomplete state or layout; the default isolated context still has 12 candidates. The source corpus test alone is not native rendering proof. See [Swift build adapters](swift-xcode-builds.md).
+
+## Application-context verification · September 11, 2026
+
+92 unit tests, TypeScript checks, the three pinned Expo source maps and the private Swift checks pass. Both Swift contexts preserve stable re-import; application context resolves 66 BetterMind factory candidates. Native evidence covers all 75 BetterMind frames, three ContextLab frames, five RecipeLab frames and nine Expo regression captures. Images were reviewed, with blank/incomplete states reported separately in [Swift build adapters](swift-xcode-builds.md). The first stale Hot Chocolate capture timed out; after rebuilding/reopening the matched hosts, the complete native suite passed. This does not erase the lifecycle and visual limitations recorded above.
+
+
+### Parent composition regression
+
+The Swift corpus also checks 31 composed state frames, distinct identities for repeated child components and stable context re-import. SceneLab verifies real parent styling, Metal output and blocked mail/SwiftUI external actions natively. Earlier 75-frame verification above describes the prior child-preview implementation. The current evidence is in `.context/verification/bettermind-composition-final/` and `.context/verification/scene-lab-final/`; candidate and mounted counts must be reported separately from visual completeness.
+
+The composition pass has 95 passing unit tests and passing TypeScript, three-app Expo source-map and private Swift regressions. All 71 BetterMind captures and both SceneLab state captures were inspected. The first Expo native run passed six Clarity captures and timed out on Hot Chocolate's location frame; the existing Hot Chocolate session was reopened for a fresh retry. See `.context/composition-native-initial.log` and `.context/composition-native-retry.log` for that distinction.
+
+The retry passed all nine Expo native captures (six Clarity, three Hot Chocolate); images were reviewed. Clarity still displays its disclosed subscription/session requirements and sparse Home cards. Workout remains source-only. These checks do not certify arbitrary Swift side effects, complete app data, or pointer-driven Swift navigation.
+
+### Component and image-fixture regression
+
+The new read-only Swift preview catalog exposes app-authored component previews and bundled assets. Selected components stay out of generated navigation. Regression tests cover selection/re-import, image-fixture preservation, animation hints, asset namespaces, bounded Kingfisher rewriting and frame-local screen bounds. BetterMind native evidence includes five component previews, independent local image choices, timed orb captures and corrected remote-message layout. An independent SceneLab shows 402- and 320-point bounds simultaneously. Fresh OpenDevs native validation uses `.context/deus-media-regression` with no source overrides, covering workspace, settings, changes and code-diff views. See [native preview catalog](native-preview-catalog.md) for commands and limitations.
+
+Final component/media validation: 98 unit tests, TypeScript checks, all three Expo source regressions and the private Swift regression pass. After explicitly opening the configured Expo experiments, all nine native captures passed (six Clarity, three Hot Chocolate) and were reviewed. The initial native attempt found those hosts stopped; that result is retained in `.context/media-native-before-open.log`, with the completed run in `.context/media-native-compat-final.log`. Clarity's disclosed service/session limitations remain. OpenDevs' five representative final captures were reviewed in `.context/verification/deus-media-final/`; this is not exhaustive validation of its 57 frames.

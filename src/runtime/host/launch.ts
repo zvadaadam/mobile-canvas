@@ -1,3 +1,6 @@
+import { nativeProcessForHost } from "./native-process";
+import { adapterForDocument } from "../adapters/index";
+import type { Session } from "../../shared/model";
 /**
  * Starts Metro for one project and opens the built native canvas against it.
  * The runtime spawns this per canvas session and reads its EXPO_CANVAS_ lines:
@@ -11,7 +14,6 @@ import { parseArgs } from "node:util";
 import { repository } from "../paths";
 import { authoredHostPaths, nativeAppPath } from "../installation";
 import { inspectEnvironment } from "../environment";
-import { prepareMatchedHost } from "./matched";
 
 let { host, output } = authoredHostPaths;
 const { values } = parseArgs({ options: { project: { type: "string" }, runtime: { type: "string" }, "host-id": { type: "string" } } });
@@ -39,16 +41,14 @@ function close(code = 0, reason = "launcher exit"): never {
     // Its unique host-id still proves ownership; never stop another canvas session.
     if (!nativePid && executable) {
       try {
-        const row = execFileSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }).split("\n")
-          .find(line => line.includes(`/${executable}.app/${executable} `) && line.trimEnd().endsWith(`--host-id ${hostId}`));
-        if (row) nativePid = Number(row.trim().split(/\s+/)[0]);
+        nativePid = nativeProcessForHost(execFileSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }), executable, hostId);
       } catch {}
     }
     // Verify the actual executable before stopping our app; PID reuse must never target another process.
     if (nativePid && executable) {
       try {
-        const command = execFileSync("ps", ["-p", String(nativePid), "-o", "comm="], { encoding: "utf8" }).trim();
-        if (command.endsWith(`/${executable}.app/${executable}`)) process.kill(nativePid, "SIGTERM");
+        const command = execFileSync("ps", ["-p", String(nativePid), "-o", "command="], { encoding: "utf8" }).trim();
+        if (command.includes(`/${executable}.app/${executable} `) && command.endsWith(`--host-id ${hostId}`)) process.kill(nativePid, "SIGTERM");
       } catch {}
     }
   }
@@ -63,6 +63,12 @@ const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 try {
   const manifest = JSON.parse(await readFile(join(project, "expo-canvas.json"), "utf8"));
+  const adapter = adapterForDocument(manifest.document);
+  const swift = !adapter.usesMetro;
+  if (swift) {
+    const session = await fetch(`${runtime}/api/session`).then(r=>r.json()) as Session;
+    ({host,output} = await adapter.prepare(session, preparation.signal));
+  }
   if (manifest.document.appPreview && manifest.document.origin?.mode === "linked") {
     const hasBuild = await access(join(project, ".expo-canvas/native-build/build.json")).then(() => true, () => false);
     if (!hasBuild) {
@@ -70,11 +76,12 @@ try {
       const missing = environment.checks.filter(check => check.status === "missing");
       if (missing.length) throw new Error(`Native setup is incomplete. ${missing.map(check => `${check.id}: ${check.detail} ${check.action}`).join(" ")} Run expo-canvas setup --app <app> for the full checklist.`);
     }
-    const matched = await prepareMatchedHost(project, manifest.document.origin.path, preparation.signal);
+    const current = await fetch(`${runtime}/api/session`).then(r=>r.json()) as Session;
+    const matched = await adapter.prepare(current, preparation.signal);
     host = matched.host;
     output = matched.output;
   }
-  console.log("Starting native renderer and Metro…");
+  console.log(swift ? "Starting Swift native renderer…" : "Starting native renderer and Metro…");
   const build = JSON.parse(await readFile(join(output, "build.json"), "utf8").catch(error => {
     if (error.code === "ENOENT") throw new Error("Build the authored-screen host first with expo-canvas build. Run expo-canvas setup to check prerequisites.");
     throw error;
@@ -87,7 +94,9 @@ try {
     await writeFile(join(output, 'build.json'), JSON.stringify(build, null, 2));
   }
   executable = build.executable;
-  const { port } = await reserveMetroPort();
+  let port = 0;
+  if (!swift) {
+  ({ port } = await reserveMetroPort());
   const log = await open(join(output, "metro.log"), "a", 0o600);
   metro = spawn(process.execPath, ["node_modules/expo/bin/cli", "start", "--localhost", "--port", String(port)], {
     cwd: host,
@@ -118,14 +127,50 @@ try {
     throw new Error(`Native bundle failed: ${String(details?.message ?? details?.error ?? bundle.statusText).slice(0, 1200)} See .context/native-studio/metro.log.`);
   }
   await bundle.arrayBuffer();
-  execFileSync("open", ["-n", build.app, "--args", "--canvas-runtime", runtime, "--metro-port", String(port), "--host-id", hostId], { stdio: "pipe" });
-  console.log(`Native Studio opened · Expo ${build.sdk} · Metro ${port}`);
-  const started = Date.now();
+  }
+  const openHost = () => execFileSync("open", ["-n", "-F", build.app, "--args", "--canvas-runtime", runtime, "--metro-port", String(port), "--host-id", hostId], { stdio: "pipe" });
+  openHost();
+  console.log(swift ? "Native Studio opened · Swift native" : `Native Studio opened · Expo ${build.sdk} · Metro ${port}`);
+  let started = Date.now();
+  const retiredPids = new Set<number>();
   // The runtime is single-threaded and sometimes busy (imports, diffs, hashing); one slow answer
   // must not end the native session. Only repeated silence does.
   let misses = 0;
+  let rebuilding = false;
+  let attemptedVersion = build.nativeVersion;
   setInterval(async () => {
+    if (rebuilding) return;
     try {
+      if (swift) {
+        const session = await fetch(`${runtime}/api/session`).then(r=>r.json()) as Session;
+        if (session.nativeVersion !== attemptedVersion) {
+          attemptedVersion = session.nativeVersion; rebuilding = true;
+          try {
+            await adapter.prepare(session, preparation.signal);
+            const newest = await fetch(`${runtime}/api/session`).then(r=>r.json()) as Session;
+            if (newest.nativeVersion !== attemptedVersion) return;
+            // A source edit can finish before the first native receipt. Find
+            // our launched process by session identity before replacing its app.
+            const current = nativePid ?? (executable ? nativeProcessForHost(
+              execFileSync("ps", ["-axo", "pid=,command="], {encoding:"utf8"}), executable, hostId) : undefined);
+            if (current) {
+              const command = execFileSync("ps", ["-p", String(current), "-o", "command="], {encoding:"utf8"});
+              if (command.trimEnd().endsWith(`--host-id ${hostId}`)) {
+                retiredPids.add(current); process.kill(current,"SIGTERM");
+                for (let attempt=0;attempt<50;attempt++) {
+                  try { process.kill(current,0); } catch { break; }
+                  await wait(100);
+                }
+              }
+            }
+            Object.assign(build, JSON.parse(await readFile(join(output,"build.json"),"utf8")));
+            nativePid = undefined; started = Date.now();
+            await wait(300); openHost();
+          } catch(error) { console.error(`EXPO_CANVAS_NOTE: Swift rebuild failed; previous preview is stale. ${(error as Error).message}`); }
+          finally { rebuilding = false; }
+          return;
+        }
+      }
       let state: { hostId?: string; host?: { pid?: number } };
       try {
         state = (await fetch(`${runtime}/api/studio/state`, { signal: AbortSignal.timeout(4000) }).then((response) => response.json())) as typeof state;
@@ -137,7 +182,7 @@ try {
         throw new Error(`The runtime stopped answering (${(error as Error).message}).`);
       }
       if (state.hostId !== hostId) return close(0, `runtime host changed to ${state.hostId}`);
-      if (state.host?.pid) nativePid = state.host.pid;
+      if (state.host?.pid && !retiredPids.has(state.host.pid)) nativePid = state.host.pid;
       // Backgrounding, a debugger or a busy JS thread can delay receipts. Only
       // process exit ends this session; heartbeat age describes readiness, not ownership.
       if (nativePid) {

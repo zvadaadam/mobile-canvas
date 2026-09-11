@@ -192,7 +192,12 @@ test('screen inspection fits the requested frame, waits for settling, returns me
   const directory=await mkdtemp(join(tmpdir(),'expo-inspect-'));
   const store=await ProjectStore.initialize(directory,'Inspection');
   const child=Object.assign(new EventEmitter(),{stdout:new PassThrough(),stderr:new PassThrough(),kill:()=>true});
-  const studio=new NativeStudio(store,(()=>child) as unknown as typeof spawn);
+  const launches: unknown[][] = [];
+  const studio=new NativeStudio(store,((...args: unknown[])=>{
+    launches.push(args);
+    if(args[0]==='open') { const activation=new EventEmitter();queueMicrotask(()=>activation.emit('close',0));return activation; }
+    return child;
+  }) as unknown as typeof spawn);
   t.after(async()=>{await studio.stop();await store.close();await rm(directory,{recursive:true,force:true});});
   const created=await store.execute(CommandSchema.parse({...identityOf(store.session()),requestId:'screen',label:'Setup',operations:[{type:'screen.create',screen:{key:'one',name:'One',notes:'A real control',code:'export default () => null;'}}]}));
   const screenId=created.created.one;
@@ -204,6 +209,8 @@ test('screen inspection fits the requested frame, waits for settling, returns me
   studio.report({...common,kind:'screen',screenId,codeVersion:store.session().codeVersion,mountedAt:Date.now(),navigation:null,state:{toggle:true}});
   const request={...identity,hostId:opened.hostId!,screenId};
   const inspection=studio.inspect(request);
+  assert.equal(launches.at(-1)?.[0],'open','inspection activates the native canvas before capturing');
+  assert.equal((launches.at(-1)?.[1] as string[])[0],'-a');
   assert.equal(studio.state().inspection?.status,'capturing');
   await assert.rejects(studio.inspect(request),/already in progress/);
   await assert.rejects(studio.capture({...identity,hostId:opened.hostId!}),/already in progress/);
@@ -214,6 +221,7 @@ test('screen inspection fits the requested frame, waits for settling, returns me
   assert.equal(studio.report({...host,acknowledged:focus.id,focusedScreenId:screenId}).command,null,'capture waits for viewport motion to finish');
   const settled={...host,acknowledged:focus.id,focusedScreenId:screenId,settled:true};
   studio.report(settled);
+  studio.report({...common,kind:'screen',screenId,codeVersion:store.session().codeVersion,mountedAt:Date.now(),navigation:null,state:{toggle:true}});
   let capture:any;
   for(let i=0;i<40&&!capture;i++){await new Promise(resolve=>setTimeout(resolve,25));capture=studio.report(settled).command;}
   assert.equal(capture?.type,'capture');assert.equal(capture?.screenId,screenId);
@@ -230,7 +238,10 @@ test('inspection refuses old hosts and clears its presence when human focus inte
   const directory=await mkdtemp(join(tmpdir(),'expo-inspect-interrupt-'));
   const store=await ProjectStore.initialize(directory,'Inspection');
   const child=Object.assign(new EventEmitter(),{stdout:new PassThrough(),stderr:new PassThrough(),kill:()=>true});
-  const studio=new NativeStudio(store,(()=>child) as unknown as typeof spawn);
+  const studio=new NativeStudio(store,((command:string)=>{
+    if(command==='open') { const activation=new EventEmitter();queueMicrotask(()=>activation.emit('close',0));return activation; }
+    return child;
+  }) as unknown as typeof spawn);
   t.after(async()=>{await studio.stop();await store.close();await rm(directory,{recursive:true,force:true});});
   const created=await store.execute(CommandSchema.parse({...identityOf(store.session()),requestId:'screen',label:'Setup',operations:[{type:'screen.create',screen:{key:'one',name:'One',code:'export default () => null;'}}]}));
   const identity=identityOf(store.session()),opened=studio.start(identity,'http://127.0.0.1:12345');

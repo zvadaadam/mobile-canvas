@@ -20,12 +20,12 @@ export const StudioControlSchema = IdentitySchema.extend({
 
 const reportBase = z.object({ workspaceId: z.uuid(), hostId: z.uuid(), acknowledged: z.number().int().nonnegative(), error: z.string().max(2000).nullable() });
 export const StudioReportSchema = z.discriminatedUnion("kind", [
-  reportBase.extend({ kind: z.literal("host"), pid: z.number().int().positive(), screenIds: z.array(Id).max(64), width: z.number().positive(), height: z.number().positive(), zoom: z.number().positive(), platform: z.enum(["ios-on-mac", "ios"]),
+  reportBase.extend({ kind: z.literal("host"), pid: z.number().int().positive(), screenIds: z.array(Id).max(128), width: z.number().positive(), height: z.number().positive(), zoom: z.number().positive(), platform: z.enum(["ios-on-mac", "ios"]),
     /** The part of the board (in screen coordinates, before zoom) that the canvas currently shows. */
     viewport: z.object({ x: z.number(), y: z.number(), width: z.number().nonnegative(), height: z.number().nonnegative() }).strict().optional(),
     /** The host's last diagnostic line, for example what a reveal computed. */
     note: z.string().max(1000).optional(), focusedScreenId: Id.nullable().optional(), settled: z.boolean().optional(), screenCapture: z.boolean().optional() }).strict(),
-  reportBase.extend({ kind: z.literal("screen"), screenId: Id, codeVersion: z.string().max(128), mountedAt: z.number().positive(), state: Props, navigation: z.string().max(100).nullable(),
+  reportBase.extend({ kind: z.literal("screen"), screenId: Id, nativeVersion: z.string().max(128).optional(), codeVersion: z.string().max(128), mountedAt: z.number().positive(), state: Props, navigation: z.string().max(100).nullable(),
     /** Recent console warnings and errors from the shared runtime, newest last. */
     console: z.array(z.string().max(400)).max(20).optional() }).strict(),
 ]);

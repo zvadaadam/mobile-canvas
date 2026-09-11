@@ -24,6 +24,9 @@ export const ImportSchema = IdentitySchema.extend({
   preview: z.boolean().default(false),
   /** Design environment: local disconnected services and disclosed public icon substitutes. */
   offline: z.boolean().default(false),
+  swiftContext: z.enum(['isolated','application']).optional(),
+  /** Add chosen app-authored component previews alongside the flow. */
+  swiftPreviews: z.array(z.string().min(1).max(1000)).max(32).optional(),
 }).strict();
 export type ImportRequest = z.infer<typeof ImportSchema>;
 

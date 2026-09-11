@@ -35,13 +35,14 @@ export function originRoot(document: CanvasDocument) {
 /** In a linked project, resolver.modules keys that are app paths are overrides of that file. */
 export function linkedOverrides(document: CanvasDocument): Record<string, string> {
   if (document.origin?.mode !== "linked") return {};
+  if (document.nativePreview) return document.nativePreview.overrides;
   return Object.fromEntries(Object.entries(document.resolver?.modules ?? {}).filter(([key]) => /\.tsx?$/.test(key)));
 }
 
 /** Project files that stand for app files: copied provenance, or linked overrides. Canvas-only code is excluded. */
 export function reviewable(document: CanvasDocument, sources: string[]): { path: string; target: string; hash: string | null }[] {
   if (document.origin?.mode === "linked") {
-    return Object.entries(linkedOverrides(document)).map(([target, path]) => ({ path, target, hash: null }));
+    return Object.entries(linkedOverrides(document)).map(([target, path]) => ({ path, target, hash: document.origin?.files[path]?.hash ?? null }));
   }
   return sources.filter((path) => path.startsWith("lib/")).map((path) => {
     const record = document.origin?.files[path];

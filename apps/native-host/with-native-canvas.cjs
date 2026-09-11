@@ -19,7 +19,8 @@ module.exports = (config) => {
       if (!script.startsWith(skip)) phase.shellScript = JSON.stringify(skip + script);
     }
     const projectName = IOSConfig.XcodeUtils.getProjectName(config.modRequest.projectRoot);
-    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({ filepath: `${projectName}/CanvasInspector.swift`, groupName: projectName, project: config.modResults });
+    for (const name of ['CanvasInspector.swift', 'CanvasRenderer.swift', 'ExpoRenderer.swift'])
+      IOSConfig.XcodeUtils.addBuildSourceFileToGroup({ filepath: `${projectName}/${name}`, groupName: projectName, project: config.modResults });
     return config;
   });
   return withDangerousMod(config, ['ios', async (config) => {
@@ -27,7 +28,8 @@ module.exports = (config) => {
     const project = fs.readdirSync(ios).find((name) => fs.existsSync(path.join(ios, name, 'AppDelegate.swift')));
     if (!project) throw new Error('Expo native AppDelegate was not generated.');
     fs.copyFileSync(path.join(__dirname, 'native/CanvasHost.swift'), path.join(ios, project, 'AppDelegate.swift'));
-    fs.copyFileSync(path.join(__dirname, 'native/CanvasInspector.swift'), path.join(ios, project, 'CanvasInspector.swift'));
+    for (const name of ['CanvasInspector.swift', 'CanvasRenderer.swift', 'ExpoRenderer.swift'])
+      fs.copyFileSync(path.join(__dirname, 'native', name), path.join(ios, project, name));
     for (const asset of fs.readdirSync(path.join(__dirname, 'assets')).filter((name) => /\.(imageset|dataset)$/.test(name))) {
       fs.cpSync(path.join(__dirname, 'assets', asset), path.join(ios, project, 'Images.xcassets', asset), { recursive: true });
     }
