@@ -50,6 +50,8 @@ The native shell separates its protocol, state and views. `CanvasRuntimeClient` 
 
 ## Boundaries
 
+`src/runtime/skills.ts` serves bundled agent guidance through CLI `skills`, MCP `canvas_read_skill` and a static MCP resource. The core workflow and editing reference stay in `docs/`; `skills/mobile-canvas/SKILL.md` is only a discovery stub. Reading CLI guidance needs no project or native runtime and never fetches remote instructions.
+
 - `src/shared`: schema and types; no filesystem or process imports.
 - `src/runtime`: files, executor, HTTP, CLI, MCP, import and review, host launch and build.
 - `src/runtime/adapters`: language-specific source/dependency analysis and Swift build preparation; Expo and Swift feed the same project executor.

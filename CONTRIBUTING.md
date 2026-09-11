@@ -20,7 +20,8 @@ designs/native-studio/       small authored example, not an exported source app
 tests/fixtures/swift/        ordinary Swift apps for public regression tests
 tests/compatibility/         pinned external app definitions
 scripts/                    packaging and compatibility entry points
-docs/                       guides, architecture and historical investigations
+docs/                       guides, bundled agent workflow and architecture
+skills/mobile-canvas/       discovery skill pointing to installed CLI/MCP guidance
 ```
 
 The root npm package ships the runtime and host source templates together. `apps/` and `packages/` identify ownership, not independently installable products. The Expo host has a separate dependency graph because it pins a native SDK. Adding workspaces would change that resolution model; it is not necessary to give these directories clear boundaries.

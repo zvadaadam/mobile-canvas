@@ -1,10 +1,16 @@
 # Mobile Canvas
 
-A native Mac canvas for exploring and designing real mobile interfaces. Expo screens and experimental SwiftUI/UIKit previews run side by side as live iOS surfaces: arrange them, try native controls, inspect the app flow, and let a coding agent iterate through the CLI or MCP.
+**See your app's screens together. Give your coding agent the same view.**
 
-Start with [installation](docs/distribution.md), [contributing and repository structure](CONTRIBUTING.md), or the [documentation index](docs/README.md). The package and primary executable are `mobile-canvas`.
+Mobile Canvas is a native Mac canvas for exploring and designing real mobile interfaces. It maps an existing app into a flow of screens, runs supported screens as live iOS views, and lets you or an agent jump straight to a design, inspect its source and capture its pixels. You can compare screens and states without repeatedly clicking through a Simulator.
 
-Install the developer preview on an Apple-silicon Mac with Node 22.14+:
+Expo apps are the primary path; SwiftUI/UIKit previews are experimental. This is a **developer preview**, with [known limitations](#what-to-expect).
+
+![An earlier Canvas build showing an Expo app as a flow of live screens](docs/native-studio.png)
+
+## Install and open your app
+
+You need an **Apple-silicon Mac**, arm64 **Node 22.14+**, full compatible **Xcode**, and local Apple development signing. Expo native builds also need **CocoaPods**; Bun-based apps need Bun. No global Expo CLI is required. The [installation guide](docs/distribution.md) explains setup, signing and disk usage.
 
 ```sh
 npm install --global https://github.com/zvadaadam/mobile-canvas/releases/download/v0.1.0/mobile-canvas-0.1.0.tgz
@@ -13,77 +19,113 @@ mobile-canvas setup --install
 mobile-canvas open
 ```
 
-Setup checks Xcode, CocoaPods, app dependencies and local development signing. The first native build takes several minutes; later opens reuse it. Use `--offline` on setup and open for supported service-disconnected previews. This is a developer tool that compiles locally, not a standalone Mac installer. See [installation and prerequisites](docs/distribution.md).
+`setup` checks prerequisites and explains what is missing. `--install` installs the app's dependencies from its supported lockfile. Xcode, your Apple account and signing need to be configured on your Mac. The first `open` builds a native host and can take several minutes; later opens reuse it. Keep that terminal running while using its canvas.
 
-[MIT licensed](LICENSE). Independent project; not affiliated with Expo. Bundled assets retain their [third-party notices](THIRD_PARTY_NOTICES.md).
+The linked experiment lives separately from your app. Your source stays in place, and experimental overrides, layout and history belong to the Canvas project. Applying an experiment back to the app is a separate, explicit action.
 
-![Mobile Canvas showing the Expo Workout app as a flow of live screens](docs/native-studio.png)
-
-The shared Swift canvas shell runs directly on an Apple-silicon Mac with actual UIKit, SwiftUI and Liquid Glass. The authored Expo host pins SDK 54; linked Expo apps use an SDK-matched host, and supported Swift apps use their own generated native target. Screens retain their original React Native or Swift code. See [Swift support and limits](docs/swift-xcode-builds.md).
-
-## Open a project
+To explore supported local UI without service credentials:
 
 ```sh
-npm start -- --project designs/native-studio                 # opens the canvas and waits for its screens
-npm start -- --project designs/native-studio --screen focus  # fits and centers one whole screen
+mobile-canvas setup --install --offline
+mobile-canvas open --offline
 ```
 
-In the window:
+`--offline` disconnects supported service integrations; it does not create missing backend records or remove the need for internet during dependency downloads.
 
-- **Click a screen** to fit and center the whole frame; click again to use its real controls. Sheets open inside their frame, and `navigate(key)` focuses the destination frame while the others keep running.
-- **Drag a screen's name** to move it. Drag the background to pan; **Pan** also lets you drag over screens. Trackpad scrolling and pinch work, as do `⌘+`, `⌘−`, `⌘0`, `⇧⌘1` (fit all) and `⇧⌘2` (fit selection).
-- **Flow** draws each screen's navigation links as connectors: forward edges solid, return edges dashed, the selected frame's edges blue, and a live navigation pulses the edge it took. **Arrange** lays the frames out by that flow in one undoable step.
-- **Inspector** edits a screen's name, position, fixture props and context, shows its source, resets its mock state or duplicates it as a new state. **Undo** and **Redo** share one history with agent edits.
-- **Agent** shows the exact MCP configuration and CLI command for this project.
+The download above is an npm-installable GitHub release. **The npm registry package and a notarized Mac installer are not published.** You do not need an npm account to install from the release URL. See [updates and removal](docs/distribution.md#install-the-release).
 
-## Setup
+## Use the canvas
 
-Node 22.14+, Xcode, CocoaPods and an Apple development team are required. The native host has its own dependencies and is built once:
+- **Find a screen:** select it in the screen list or click its frame to fit the whole screen. Click again to interact with its native controls.
+- **Follow the flow:** Flow shows inferred content-navigation links. In linked Expo previews, navigation focuses the destination frame while the original stays on its route. Tab/back chrome is excluded from the connector graph.
+- **Compare designs:** edit fixture props in the inspector, duplicate a screen as another state, or ask your agent to make a source change. Notes record purpose and interactions. Undo and Redo share history with agent transactions.
+- **Arrange and move:** Arrange lays out the flow. Drag a frame's name to move it; drag the background to pan. Use the canvas zoom controls, trackpad pinch, or `⇧⌘1` to fit all and `⇧⌘2` to fit the selection.
+- **Connect an agent:** the Agent panel supplies the exact MCP configuration for the open project. Agent screen inspection visibly focuses the frame and briefly shows a blue ring.
+
+Ordinary Expo source edits refresh through Metro. Swift changes need a native rebuild/relaunch; resolver and native dependency changes also need reopen/rebuild.
+
+For a source-only map that does not execute the app:
 
 ```sh
-npm ci
-npm ci --prefix apps/native-host
-npm run studio:build -- --team YOUR_TEAM_ID
+mobile-canvas map --app /path/to/app --project /path/to/separate-experiment
 ```
 
-`studio:build -- --incremental` rebuilds after Swift or asset changes without repeating prebuild and Pods. See [the native canvas](docs/native-canvas-host.md) for what the host links and how it composes frames.
+Those initial cards describe source discovery. Run `mobile-canvas open --app /path/to/app --project /path/to/separate-experiment` to enable supported native previews. For Swift, pass its directory explicitly with `--app`; read [Swift setup and limits](docs/swift-xcode-builds.md).
 
-## Agents
+## Use it with a coding agent
+
+Both **CLI and MCP** operate the same local runtime, native window and undo history. Mobile Canvas provides the map, source access and native images; your agent supplies the reasoning and code changes. There is no separate chat or hosted agent service.
+
+### Teach the agent the workflow
+
+The installed product serves its own instructions, so guidance matches the version being used:
 
 ```sh
-node bin/mobile-canvas.mjs init --project designs/my-app --name "My app"
-node bin/mobile-canvas.mjs screen add --project designs/my-app --key home --name Home
-node bin/mobile-canvas.mjs open --project designs/my-app --screen home
-node bin/mobile-canvas.mjs mcp --project designs/my-app
+mobile-canvas skills list
+mobile-canvas skills get core
+mobile-canvas skills get core --full   # also load editing and transaction examples
 ```
 
-An agent reads the project, writes ordinary TSX under `screens/`, `components/` and `lib/`, changes fixture props and geometry in one undoable batch, opens the canvas, checks readiness and calls `canvas_inspect_screen` for a native image and screen metadata. The canvas follows that inspection with a temporary blue ring and label. Screens carry `notes` (purpose, states, interactions) and `links` (where they navigate), which is what the Flow connectors and Arrange use. [The agent guide](docs/agents.md) has the contract; [architecture](docs/architecture.md) explains the runtime.
-
-## Existing apps
-
-`import --link` brings an existing Expo app onto the canvas without copying it: the app's own source runs in place, its JavaScript packages serve it, native modules come from the host, and the project holds only the files the experiment overrides or adds, each mapped by app path in `expo-canvas.json`. `diff` shows what the experiment changed versus the app; `apply --files` copies chosen files back, and only when asked.
+These commands work without a project, Xcode or a running canvas. They also support `--json`. A small [discovery skill](skills/mobile-canvas/SKILL.md) directs compatible agents to this bundled guidance. To install it with the Skills CLI:
 
 ```sh
-node bin/mobile-canvas.mjs import --project designs/my-experiment --from /path/to/app --link
-node bin/mobile-canvas.mjs diff --project designs/my-experiment
-node bin/mobile-canvas.mjs apply --project designs/my-experiment --files lib/screens/week/index.tsx
+npx skills add zvadaadam/mobile-canvas --skill mobile-canvas
 ```
 
-Existing-app tests fetch pinned [Hot Chocolate](https://github.com/expo/hot-chocolate), [Clarity](https://github.com/SchroederNathan/clarity) and [Workout](https://github.com/zvadaadam/expo-workout-app) revisions into gitignored `.context/`. No exported workout project is bundled. `designs/native-studio` is a small three-screen example built directly for the canvas. See [compatibility setup](docs/compatibility.md) for clone and preview commands.
+Or add this instruction to your agent's project guidance: **“For mobile UI work with Mobile Canvas, first run `mobile-canvas skills get core`.”** No skill installer is required for CLI or MCP usage.
 
-## Verify
+### Connect MCP
 
-```sh
-npm run check          # runtime, CLI, MCP
-npm run check:studio   # the native host's TypeScript
-npm test               # transactions, import, review, arrange, studio protocol
-npm run test:compat:public # pinned Clarity and Hot Chocolate maps; no private access
+Add this entry to your agent's MCP configuration, replacing the app path:
+
+```json
+{
+  "mcpServers": {
+    "mobile-canvas": {
+      "command": "mobile-canvas",
+      "args": ["mcp", "--app", "/absolute/path/to/app"]
+    }
+  }
+}
 ```
 
-[Validation](docs/validation.md) records what was observed on a real Mac and what is still unverified. Maintainers also run `npm run test:compat`, including the private Workout reference. The [compatibility workflow](docs/compatibility.md) adds native MCP captures for Hot Chocolate and Clarity. Known limits: Expo hosts support up to 32 frames, Swift up to 128; linked Expo previews isolate their JavaScript runtimes, while Swift globals remain shared. Exact iPhone fidelity is not established. SDK 57 can still crash during a full native reload after changing a component export.
+Use an absolute executable path if the agent cannot find your terminal's `mobile-canvas`. Add `--offline` to the arguments for the supported disconnected preview, or use `--project /absolute/path/to/experiment` to connect to an existing experiment. MCP startup maps source; **`canvas_studio_open` is the explicit step that builds and runs the app**.
 
-## Map an existing app without adapters
+The agent can call **`canvas_read_skill`** with `{"name":"core"}` to read the same workflow, or `{"name":"core","full":true}` for editing details. Clients supporting MCP resources can read **`mobile-canvas://skills/core`**. Guidance is bundled locally; it is not fetched from a service.
 
-`node bin/mobile-canvas.mjs open --app /absolute/app` deterministically creates a linked route map and renders the actual Expo 56 or 57 app in a separate native host. Use `mcp --app /absolute/app` for automatic MCP setup. No agent-authored wrappers, fixtures or app-specific shims are needed; real detail parameters are discovered from rendered links, and unresolved examples are explicitly labeled. Shared routes get one frame; navigation moves canvas focus while each origin stays on its route. The first native build takes several minutes and is cached. `map --app` remains source-only discovery. See [setup, verification and limitations](docs/drop-in.md).
+### The agent's working loop
 
-Add `--offline` for an explicit design preview without Clerk/Convex credentials. Supported service integrations are disconnected, local app data and native controls remain real, and public icons can replace missing Hugeicons Pro packs. Service-owned UI and screens requiring session records remain limited; the canvas and MCP disclose the preview environment.
+| Step | MCP capability |
+| --- | --- |
+| Understand the UI | `canvas_read` lists all frames; `canvas_route_map` gives linked screen IDs, source paths, params, notes, flow links and coverage limits. |
+| Open a destination | `canvas_environment` checks prerequisites; `canvas_studio_open` opens the native canvas and can focus a screen by ID. |
+| See what actually rendered | `canvas_studio_state` reports readiness/errors; `canvas_inspect_screen` returns a native screen image and metadata. `canvas_studio_capture` captures the visible canvas. |
+| Read and change code | `canvas_read_route_source` reads linked app source; `canvas_read_source` reads experiment files. `canvas_batch` applies source/fixture changes with conflict checks and undo. |
+| Review a design | Reinspect pixels after edits, use `canvas_arrange` to organize flow, and review `canvas_origin_diff`. Apply selected files only when requested. |
+
+For example, ask your agent:
+
+> Use Mobile Canvas to map this app's onboarding. Inspect each available step, identify inconsistent spacing, and make a separate experiment with a proposed fix. Keep unavailable states visible and tell me what you could not verify.
+
+A CLI agent can use `read`, `studio status`, `studio focus <key>` and `studio capture` with `--project /path/to/experiment`; capture returns a local PNG path. MCP additionally returns per-screen image blocks and a structured sitemap directly. See the [agent workflow](docs/agent-workflow.md) and [editing reference](docs/agents.md).
+
+## What to expect
+
+| Area | Current boundary |
+| --- | --- |
+| App support | Linked Expo SDK 56/57; authored Expo previews use SDK 54. Swift support is experimental and bounded by supported source/build patterns. |
+| Screen coverage | The map infers routes, content links and recognized finite steps. It does not enumerate every runtime redirect, record or local state. A mapped screen is not proof of a working preview. |
+| Missing data | Dynamic routes need real parameters; separate frames do not transfer provider/session state. Offline previews cannot supply remote records, purchases or service-owned UI. |
+| Native behavior | Camera and other device services can be unavailable. Swift globals/services are not generally isolated, and ordinary Swift navigation is not fully pinned. |
+| Reliability | SDK 57 can crash on a full native reload after a component export change. Stop/reopen that project's canvas and check logs if this happens. |
+| Scale and fidelity | Up to 32 Expo or 128 Swift frames. Screens use real native controls, but exact iPhone fidelity and arbitrary-app compatibility are not established. |
+
+An unavailable card stays in the flow with its reason. Check the screen's metadata and host errors before interpreting an empty image as an app design bug. Screenshots prove only what was visible; use live interaction to assess gestures and animation.
+
+The release has been tested through isolated npm installation, CLI/MCP calls, public macOS CI, and native Hot Chocolate/Clarity captures on the development Mac. This does **not** establish that another Mac already has working Xcode/signing or that every screen renders. See [compatibility evidence](docs/compatibility.md) and [distribution verification](docs/distribution.md#validate-before-sharing).
+
+## Contribute
+
+Start with [contributor setup and repository structure](CONTRIBUTING.md). The [documentation index](docs/README.md) links architecture, adapter boundaries and regression commands. Public tests use pinned [Hot Chocolate](https://github.com/expo/hot-chocolate) and [Clarity](https://github.com/SchroederNathan/clarity) checkouts; app source and experiments are not bundled in the product.
+
+[MIT licensed](LICENSE). Independent project, not affiliated with Expo. Bundled assets retain their [third-party notices](THIRD_PARTY_NOTICES.md).

@@ -1,4 +1,6 @@
-# Agent workflow
+# Agent editing reference
+
+Start with the [bundled workflow](agent-workflow.md), served by `mobile-canvas skills get core` and MCP `canvas_read_skill`. Load this reference with `--full` / `full: true` when editing.
 
 Point each CLI or MCP session at an explicit project. Read first, make one bounded batch, open or refresh the canvas, check readiness, look at a capture, then iterate. Do not infer success from a command receipt alone.
 
@@ -12,14 +14,14 @@ For deterministic Expo 56/57 app previews, use `mcp --app /absolute/app` or `ope
 
 ## MCP setup
 
-Replace the two absolute paths with this checkout and your project:
+Use the installed executable and replace the project path (or copy the Agent panel's configuration):
 
 ```json
 {
   "mcpServers": {
     "mobile-canvas": {
-      "command": "node",
-      "args": ["/absolute/expo-canvas/bin/mobile-canvas.mjs", "mcp", "--project", "/absolute/expo-canvas/designs/native-studio"]
+      "command": "mobile-canvas",
+      "args": ["mcp", "--project", "/absolute/path/to/experiment"]
     }
   }
 }
@@ -74,8 +76,8 @@ Default dimensions are 402 × 874 points with no safe-area insets unless `insets
 ## Open the canvas, or one screen of it
 
 ```sh
-node bin/mobile-canvas.mjs open --project designs/native-studio                # the whole flow, fitted
-node bin/mobile-canvas.mjs open --project designs/native-studio --screen focus # one whole screen fitted and centered
+mobile-canvas open --project designs/native-studio                # the whole flow, fitted
+mobile-canvas open --project designs/native-studio --screen focus # one whole screen fitted and centered
 ```
 
 `open --screen <key>` (MCP `canvas_studio_open` with `screen: <id>`) is the URL of this tool: the canvas opens, or comes forward if it is already open, and fits and centers the whole frame as soon as it has laid out. A source change refreshes the mounted frames in place through Metro, so an agent that edits a screen and reopens it with `--screen` sees the result without clicking through the app. `studio zoom <scale> --key <screen>` does the same on an open canvas, and `studio focus <screen>` fits and centers the whole screen.
@@ -124,7 +126,7 @@ Use `notes` for each screen's purpose, fixture states, interactions, animation i
 
 The override applies wherever the app imports that file, relative imports included; a path the app does not have becomes an added file. Without `--link`, `import [--name] [--include a,b] [--exclude a,b] [--modules pkg]` copies the app's source into `lib/` with provenance, and `--modules` copies JavaScript-only packages into the project's `node_modules`.
 
-The import report classifies every bare specifier as `host`, `app`, `project` or `missing` (with a note when a package is installed but lacks the exact subpath). Then:
+The import report classifies every bare specifier as `host`, `app`, `project` or `missing` (with a note when a package is installed but lacks the exact subpath). For manually authored SDK 54 imports only, an app may need preview-specific integration. These are not prerequisites for the deterministic Expo 56/57 `--app` path, which owns its host adapters. Do not introduce app-specific shims merely to open a supported linked app. When building a custom authored preview:
 
 1. Replace persistence, services and navigation with shims under `lib/shims/`, mapped through `resolver.update` (`"expo-router": "lib/shims/expo-router.tsx"`). Substitutions apply to the project's and the linked app's own code only. A shim that wraps the module it replaces must live alone in its directory and import the bare name, or import a subpath; never `export *` from `react-native`.
 2. Scope anything the app keeps in a module singleton per frame: theme tokens, `useWindowDimensions`, the router.
@@ -132,6 +134,16 @@ The import report classifies every bare specifier as `host`, `app`, `project` or
 4. Reopen the canvas after changing the resolver; `canvas_studio_state.resolverCurrent` and `canvas_doctor` say when.
 
 For existing-app regression coverage, use the pinned repositories and generated linked previews in [compatibility setup](compatibility.md). The former curated workout export is no longer included.
+
+## Swift source overrides
+
+Before the first Swift override, `canvas_read_route_source` returns the original app path and hash. In one `canvas_batch`, write the changed Swift into a project `lib/` file with `source.write`, then associate it with the original using `native.override`:
+
+```json
+{ "type": "native.override", "appPath": "Views/Home.swift", "source": "lib/Home.swift", "expectedHash": "<current original app source hash>" }
+```
+
+The source write's hash checks the project override (null for a new file); the native override's hash checks the original app file. Once an override exists, the route-source read returns that override and its hash instead; subsequent edits need only `source.write` unless changing the mapping. Use actual paths and hashes from reads. Re-import to refresh Xcode target membership after adding source files; changing a factory or source requires native rebuild/relaunch and a fresh capture. Swift globals and services remain shared; choosing application context explicitly runs real app initialization. Use `canvas_native_preview_catalog` for existing component factories, animation evidence and local assets, and select component previews through `canvas_import.swiftPreviews`. A factory or animation hint is not proof of visible content or motion. See [Swift limits](swift-xcode-builds.md).
 
 ## Explore directions, then carry a choice back
 
@@ -142,10 +154,10 @@ A design direction is a scoped object the primitives read, not a global. Declare
 ## Verify
 
 ```sh
-node bin/mobile-canvas.mjs studio status --project designs/native-studio
-node bin/mobile-canvas.mjs studio zoom 1 --key focus --project designs/native-studio
-node bin/mobile-canvas.mjs studio capture --project designs/native-studio
-node bin/mobile-canvas.mjs doctor --project designs/native-studio
+mobile-canvas studio status --project designs/native-studio
+mobile-canvas studio zoom 1 --key focus --project designs/native-studio
+mobile-canvas studio capture --project designs/native-studio
+mobile-canvas doctor --project designs/native-studio
 ```
 
 The MCP path:
@@ -156,7 +168,7 @@ The MCP path:
 4. `canvas_studio_capture` with identity and `hostId` returns provenance (`method` is `host` for the host's own render, `screen` for the ScreenCaptureKit fallback) and a PNG of the current viewport. Inspect the image; use the environment's native computer tools for pointer interaction. Natively presented sheets are absent from the host's own render.
 5. Iterate through hash-checked `canvas_batch` calls and confirm the new `codeVersion` in every affected receipt. `canvas_history` undoes or redoes a whole transaction.
 
-A terminal client for the real stdio MCP server, for hosts without attached tools:
+For contributors working from a source checkout, a terminal helper can call the real stdio MCP server (this script is not in the installed package):
 
 ```sh
 node --import tsx scripts/mcp-call.ts designs/native-studio list

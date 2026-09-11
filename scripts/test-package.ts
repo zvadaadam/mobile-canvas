@@ -35,6 +35,9 @@ const requiredInputs = [
   'THIRD_PARTY_NOTICES.md',
   'scripts/prepare-package.ts',
   'bin/mobile-canvas.mjs',
+  'skills/mobile-canvas/SKILL.md',
+  'docs/agent-workflow.md',
+  'docs/agents.md',
   'src/runtime/cli.ts',
   'src/runtime/host/build.ts',
   'src/runtime/adapters/expo/frames.ts',
@@ -58,6 +61,14 @@ try {
   console.log('Installing the tarball with production dependencies in an isolated prefix…');
   await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, env: isolatedEnv, timeout: 120_000 });
   const bin = join(prefix, 'bin/mobile-canvas');
+  const core = (await run(bin, ['skills', 'get', 'core'], { cwd: directory, env: isolatedEnv })).stdout;
+  assert.equal(core, await readFile(join(repository, 'docs/agent-workflow.md'), 'utf8'));
+  const full = JSON.parse((await run(bin, ['skills', 'get', 'core', '--full', '--json'], { cwd: directory, env: isolatedEnv })).stdout).content;
+  assert.ok(full.startsWith(core));
+  assert.ok(full.includes(await readFile(join(repository, 'docs/agents.md'), 'utf8')));
+  const skills = JSON.parse((await run(bin, ['skills', 'list', '--json'], { cwd: directory, env: isolatedEnv })).stdout);
+  assert.equal(skills[0].name, 'core');
+  await assert.rejects(run(bin, ['skills', 'get', '../../package.json'], { cwd: directory, env: isolatedEnv }), /Unknown skill/);
   assert.match((await run(bin, ['--help'], { cwd: directory, env: isolatedEnv })).stdout, /Mobile Canvas/);
   assert.match((await run(join(prefix, 'bin/expo-canvas'), ['--help'], { cwd: directory, env: isolatedEnv })).stdout, /Mobile Canvas/);
   const nodeOnly = join(directory, 'node-only');
@@ -95,8 +106,23 @@ try {
   assert.equal(client.getServerVersion()?.name, 'mobile-canvas');
   const list = await client.listTools();
   assert.ok(list.tools.some(tool => tool.name === 'canvas_environment'));
+  const skill: any = await client.callTool({ name: 'canvas_read_skill', arguments: {} });
+  assert.ok(!skill.isError, JSON.stringify(skill));
+  assert.equal(skill.content[0].text, core);
+  const fullSkill: any = await client.callTool({ name: 'canvas_read_skill', arguments: { name: 'core', full: true } });
+  assert.equal(fullSkill.content[0].text, full);
+  const resources = await client.listResources();
+  assert.ok(resources.resources.some(resource => resource.uri === skills[0].uri));
+  const resource = await client.readResource({ uri: skills[0].uri });
+  assert.ok('text' in resource.contents[0]);
+  assert.equal(resource.contents[0].text, core);
+  const badSkill = await client.callTool({ name: 'canvas_read_skill', arguments: { name: '../../package.json' } });
+  assert.ok(badSkill.isError);
   const read: any = await client.callTool({ name: 'canvas_read', arguments: {} });
   const session = JSON.parse(read.content[0].text);
+  assert.equal(session.project.sequence, 0, 'Reading skills must not mutate the project');
+  const studio: any = await client.callTool({ name: 'canvas_studio_state', arguments: {} });
+  assert.equal(JSON.parse(studio.content[0].text).hostId, null, 'Reading skills must not launch native code');
   const imported: any = await client.callTool({ name: 'canvas_import', arguments: { workspaceId: session.project.workspaceId, sequence: session.project.sequence, requestId: crypto.randomUUID(), from: app, link: true, map: true } });
   assert.ok(!imported.isError, JSON.stringify(imported));
   const result: any = await client.callTool({ name: 'canvas_route_map', arguments: {} });
@@ -106,7 +132,7 @@ try {
   const environment: any = await client.callTool({ name: 'canvas_environment', arguments: {} });
   assert.ok(!environment.isError, JSON.stringify(environment));
   assert.ok(JSON.parse(environment.content[0].text).checks.some((check: any) => check.id === 'xcode'));
-  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'installed mobile-canvas --help', 'actual installed MCP handshake and tool list', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
+  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'bundled CLI, MCP tool and resource guidance agree; reading leaves the document and native host untouched', 'installed mobile-canvas --help', 'actual installed MCP handshake and tool list', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
   await writeFile(join(repository, '.context/distribution/package-test.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally { await client.close(); await rm(directory, { recursive: true, force: true }); }
