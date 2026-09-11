@@ -1,3 +1,4 @@
+import { detectProjectAdapter } from "./adapters/index";
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -36,9 +37,9 @@ export async function setup(options: { app?: string; project?: string; offline?:
   if (options.install && options.json) throw new Error('Use --install without --json; package managers write their own output.');
   if (options.project && !options.app) {
     const { document } = JSON.parse(await readFile(join(options.project, 'expo-canvas.json'), 'utf8'));
-    if (document.appPreview && document.origin?.mode === 'linked') {
+    if ((document.appPreview || document.nativePreview) && document.origin?.mode === 'linked') {
       options.app = document.origin.path;
-      options.offline ??= document.appPreview.offline;
+      options.offline ??= document.appPreview?.offline;
     }
   }
   if (options.install && !options.app) throw new Error('Use setup --install --app /path/to/app to download its dependencies.');
@@ -64,7 +65,7 @@ export async function setup(options: { app?: string; project?: string; offline?:
       console.error('Multiple development teams are available. Run setup in a terminal to choose one, or pass --team YOURTEAMID.');
     }
   }
-  if (options.install) {
+  if (options.install && await detectProjectAdapter(options.app!) !== "swift-ios") {
     const code = await installAppDependencies(options.app!);
     report = await inspectEnvironment(options);
     if (code) {

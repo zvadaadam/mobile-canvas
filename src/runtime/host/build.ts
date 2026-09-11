@@ -58,7 +58,8 @@ if (!values.incremental) {
   const appDirectory = (await readdir(join(host, "ios"))).find((name) => existsSync(join(host, "ios", name, "AppDelegate.swift")));
   if (!appDirectory) throw new Error("Run one full native host build before --incremental.");
   await copyFile(join(host, "native/CanvasHost.swift"), join(host, "ios", appDirectory, "AppDelegate.swift"));
-  await copyFile(join(host, "native/CanvasInspector.swift"), join(host, "ios", appDirectory, "CanvasInspector.swift"));
+  for (const name of ["CanvasInspector.swift", "CanvasRenderer.swift", "ExpoRenderer.swift"])
+    await copyFile(join(host, "native", name), join(host, "ios", appDirectory, name));
   for (const asset of (await readdir(join(host, "assets"))).filter((name) => /\.(imageset|dataset)$/.test(name)))
     await cp(join(host, "assets", asset), join(host, "ios", appDirectory, "Images.xcassets", asset), { recursive: true });
 }

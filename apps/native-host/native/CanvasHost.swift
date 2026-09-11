@@ -1,61 +1,26 @@
-#if CANVAS_MATCHED_HOST
-internal import Expo
-#else
-import Expo
-#endif
-import React
-import ReactAppDependencyProvider
 import UIKit
 import CoreText
 
-
-private func argument(_ name: String) -> String? {
+func argument(_ name: String) -> String? {
   let args = ProcessInfo.processInfo.arguments
   guard let index = args.firstIndex(of: name), index + 1 < args.count else { return nil }
   return args[index + 1]
 }
 
-@UIApplicationMain
-class AppDelegate: ExpoAppDelegate {
-  var canvasFactory: ExpoReactNativeFactory!
-  var canvasDelegate: CanvasReactDelegate!
-  override func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-#if CANVAS_MATCHED_HOST
-    // The launcher already preflights the complete bundle. Concurrent per-frame
-    // runtimes don't need Metro's multipart progress stream; ordinary responses
-    // avoid intermittent multipart-reader cancellations during a full-map launch.
-    RCTSetCustomMultipartDataTaskRequestInterceptor { request in
-      guard var request else { return nil }
-      request.setValue("application/javascript", forHTTPHeaderField: "Accept")
-      return request
-    }
-#endif
-    canvasDelegate = CanvasReactDelegate()
-    canvasDelegate.dependencyProvider = RCTAppDependencyProvider()
-    canvasFactory = ExpoReactNativeFactory(delegate: canvasDelegate)
-#if !CANVAS_MATCHED_HOST
-    bindReactNativeFactory(canvasFactory)
-#endif
-    return super.application(application, didFinishLaunchingWithOptions: options)
-  }
-}
-
-class CanvasReactDelegate: ExpoReactNativeFactoryDelegate {
-  override func sourceURL(for bridge: RCTBridge) -> URL? { bridge.bundleURL ?? bundleURL() }
-  override func bundleURL() -> URL? {
-    let port = Int(argument("--metro-port") ?? "") ?? 8108
-    return URL(string: "http://127.0.0.1:\(port)/.expo/.virtual-metro-entry.bundle?platform=ios&dev=true&minify=false")
-  }
-}
-
 class CanvasSceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
-    guard let scene = scene as? UIWindowScene, let app = UIApplication.shared.delegate as? AppDelegate else { return }
+    guard let scene = scene as? UIWindowScene, let app = UIApplication.shared.delegate as? CanvasApplicationDelegate else { return }
     window = UIWindow(windowScene: scene)
     window?.overrideUserInterfaceStyle = .light
-    window?.rootViewController = CanvasController(factory: app.canvasFactory)
+    window?.rootViewController = CanvasController(renderer: app.canvasRenderer)
     window?.makeKeyAndVisible()
+  }
+  func sceneWillResignActive(_ scene: UIScene) {
+    (window?.rootViewController as? CanvasController)?.suspendViewportMotion()
+  }
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    (window?.rootViewController as? CanvasController)?.restoreWindowLayout()
   }
 }
 
@@ -66,6 +31,7 @@ func rgb(_ hex: UInt32) -> UIColor {
 }
 
 /// The canvas follows Expo's light interface: neutral surfaces, hairline borders, blue only for selection.
+@MainActor
 enum Palette {
   static let canvas = rgb(0xF2F3F5)
   static let surface = UIColor.white
@@ -82,14 +48,15 @@ enum Palette {
   static let red = rgb(0xE5484D)
 }
 
+@MainActor
 enum Fonts {
   static func medium(_ size: CGFloat) -> UIFont { UIFont(name: "Inter-Medium", size: size) ?? .systemFont(ofSize: size, weight: .medium) }
   static func regular(_ size: CGFloat) -> UIFont { .systemFont(ofSize: size) }
   static func mono(_ size: CGFloat) -> UIFont { .monospacedSystemFont(ofSize: size, weight: .regular) }
 }
 
-let hairlineWidth = 1 / UIScreen.main.scale
-func hairline() -> UIView {
+@MainActor let hairlineWidth = 1 / UIScreen.main.scale
+@MainActor func hairline() -> UIView {
   let line = UIView()
   line.backgroundColor = Palette.hairline
   return line
@@ -152,9 +119,7 @@ final class FrameTitle: UIControl {
 }
 
 final class CanvasFrame: UIViewController {
-  // Linked apps own router/theme module singletons, so each gets its own JS runtime.
-  var reactFactory: ExpoReactNativeFactory?
-  var reactDelegate: CanvasReactDelegate?
+  var rendered: CanvasRenderedFrame?
   let id: String
   let label = FrameTitle()
   // A frame exists for every authored screen; its React root mounts once it scrolls into view and then stays.
@@ -180,8 +145,10 @@ final class CanvasFrame: UIViewController {
     label.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragTitle(_:))))
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  func mount(root: UIView, in scene: UIWindowScene) {
+  func mount(rendered: CanvasRenderedFrame, in scene: UIWindowScene) {
     guard self.root == nil else { return }
+    self.rendered = rendered
+    let root = rendered.controller.view!
     root.accessibilityIdentifier = "canvas.frame." + id
     self.root = root
     placeholder.isHidden = true
@@ -244,8 +211,7 @@ final class CanvasFrame: UIViewController {
     window.windowLevel = .normal + 1
     window.overrideUserInterfaceStyle = .light
     window.clipsToBounds = true
-    let controller = UIViewController()
-    controller.view = root
+    guard let controller = rendered?.controller else { return }
     controller.view.clipsToBounds = true
     if #available(iOS 17.0, *) {
       controller.traitOverrides.horizontalSizeClass = .compact
@@ -275,7 +241,7 @@ final class CanvasToolsWindow: UIWindow {
 
 // MARK: - Canvas
 
-let maxScreens = 32
+
 private let toolbarHeight: CGFloat = 52
 private let statusHeight: CGFloat = 30
 private let inspectorWidth: CGFloat = 300
@@ -285,7 +251,8 @@ private let canvasToolsClearance: CGFloat = 64
 private let boardMargins = UIEdgeInsets(top: 48, left: 32, bottom: 32, right: 32)
 
 final class CanvasController: UIViewController, UIScrollViewDelegate {
-  private let factory: ExpoReactNativeFactory
+  private let renderer: CanvasRendering
+  private var maxScreens: Int { renderer.maximumScreens }
   private let scroll = UIScrollView()
   private let board = UIView()
   private let toolbar = UIView()
@@ -352,6 +319,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private var worldOffset = CGPoint.zero
   private var boardSize = CGSize(width: 1200, height: 1000)
   /// A frame to center once the window has a real size; a reveal before the first layout would use empty bounds.
+  private var lastWindowSize = CGSize.zero
   private var pendingReveal: (id: String, scale: CGFloat?)?
   /// The last reveal's computation, reported to the runtime so an agent can see why the canvas looks where it does.
   private var note = ""
@@ -362,14 +330,14 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private let runtime: URL?
   private enum Tone { case idle, busy, ready, error }
 
-  init(factory: ExpoReactNativeFactory) {
-    self.factory = factory
+  init(renderer: CanvasRendering) {
+    self.renderer = renderer
     let candidate = URL(string: argument("--canvas-runtime") ?? "")
     runtime = candidate?.scheme == "http" && candidate?.host == "127.0.0.1" && candidate?.port != nil ? candidate : nil
     super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  deinit {
+  isolated deinit {
     poll?.invalidate()
     motion?.invalidate()
     if let previewActivity { ProcessInfo.processInfo.endActivity(previewActivity) }
@@ -457,7 +425,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       guard let self else { return }
       let encoded = source.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? source
       let props = screenId.flatMap { self.entries[$0]?["props"] as? [String: Any] }
-      let endpoint = props?["route"] != nil && screenId != nil ? "route-source?screenId=\(screenId!)" : "source?path=\(encoded)"
+      let endpoint = (props?["route"] != nil || props?["native"] != nil) && screenId != nil ? "route-source?screenId=\(screenId!)" : "source?path=\(encoded)"
       self.request(endpoint) { [weak self] result in
         switch result {
         case .success(let result): self?.inspector.showSource(path: result["appPath"] as? String ?? source, code: result["code"] as? String ?? "", original: result["overridden"] as? Bool == false)
@@ -571,9 +539,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     }
     NSLayoutConstraint.activate([
       leading.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 20),
-      leading.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+      leading.centerYAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: -toolbarHeight / 2),
       trailing.trailingAnchor.constraint(equalTo: toolbar.trailingAnchor, constant: -16),
-      trailing.centerYAnchor.constraint(equalTo: toolbar.centerYAnchor),
+      trailing.centerYAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: -toolbarHeight / 2),
       leading.trailingAnchor.constraint(lessThanOrEqualTo: trailing.leadingAnchor, constant: -16),
     ])
     view.addSubview(toolbar)
@@ -667,12 +635,16 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    let previousCenter = viewportCenter
+    let resized = lastWindowSize != .zero && lastWindowSize != view.bounds.size
+    lastWindowSize = view.bounds.size
+    if resized { stopMotion() }
     let top = view.safeAreaInsets.top
     let panel: CGFloat = inspectorVisible ? min(inspectorWidth, view.bounds.width * 0.3) : 0
     let sidebar: CGFloat = navigatorVisible ? min(navigatorWidth, view.bounds.width * 0.23) : 0
     let canvasWidth = view.bounds.width - panel - sidebar
-    toolbar.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: toolbarHeight)
-    toolbarLine.frame = CGRect(x: 0, y: toolbarHeight - hairlineWidth, width: view.bounds.width, height: hairlineWidth)
+    toolbar.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: top + toolbarHeight)
+    toolbarLine.frame = CGRect(x: 0, y: top + toolbarHeight - hairlineWidth, width: view.bounds.width, height: hairlineWidth)
     scroll.frame = CGRect(x: sidebar, y: top + toolbarHeight, width: canvasWidth, height: max(1, view.bounds.height - top - toolbarHeight - statusHeight))
     statusBar.frame = CGRect(x: sidebar, y: view.bounds.height - statusHeight, width: canvasWidth, height: statusHeight)
     statusLine.frame = CGRect(x: 0, y: 0, width: canvasWidth, height: hairlineWidth)
@@ -684,6 +656,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     emptyLabel.frame = scroll.frame.insetBy(dx: 40, dy: 0)
     positionTools()
     centerBoard()
+    if resized && fitted { setViewport(scale: scroll.zoomScale, center: previousCenter) }
     if !fitted && !frames.isEmpty && scroll.bounds.width > 100 {
       fitted = true
       fit()
@@ -714,6 +687,14 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     toolsWindow?.isHidden = false
   }
   override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); positionTools() }
+  func suspendViewportMotion() { stopMotion() }
+  func restoreWindowLayout() {
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+    positionContentWindows()
+    positionTools()
+    reportHost()
+  }
   func viewForZooming(in scrollView: UIScrollView) -> UIView? { board }
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     zoomButton.configuration?.title = "\(Int((scroll.zoomScale * 100).rounded()))%"
@@ -753,31 +734,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       guard let frame = frames[id], !frame.isMounted else { continue }
       let rect = frame.view.convert(frame.view.bounds, to: canvasWindow)
       guard rect.intersects(viewport) || id == selectedId else { continue }
-      // Expo's normal delegate path recreates the app root and asserts on the second call.
-      // Its exported superView path reaches RN's multi-surface factory on the shared host.
-      var properties: [AnyHashable: Any] = [
-        "screenId": id, "runtimeUrl": runtime.absoluteString, "workspaceId": workspaceId, "hostId": hostId,
-      ]
-#if CANVAS_MATCHED_HOST
-      properties["isolatedRuntime"] = true
-      let delegate = CanvasReactDelegate()
-      delegate.dependencyProvider = RCTAppDependencyProvider()
-      let isolatedFactory = ExpoReactNativeFactory(delegate: delegate)
-      frame.reactDelegate = delegate
-      frame.reactFactory = isolatedFactory
-      let root = isolatedFactory.recreateRootView(withBundleURL: delegate.bundleURL(), moduleName: "ExpoCanvasScreen", initialProps: properties, launchOptions: nil)
-#else
-      let rootFactory = factory.rootViewFactory as! ExpoReactRootViewFactory
-      let root = rootFactory.superView(withModuleName: "ExpoCanvasScreen", initialProperties: properties, launchOptions: nil)
-#endif
-      // expo-splash-screen customizes every root but owns only one loading view.
-      // In this multi-surface host it leaves older frames under permanent white
-      // splash overlays. Frame placeholders/readiness belong to the canvas.
-      if let surface = root as? RCTSurfaceHostingProxyRootView {
-        surface.disableActivityIndicatorAutoHide(false)
-        surface.loadingView = UIView(frame: .zero)
-      }
-      frame.mount(root: root, in: scene)
+      let request = CanvasFrameRequest(id: id, runtime: runtime, workspaceId: workspaceId, hostId: hostId,
+        entry: entries[id] ?? [:], codeVersion: latestSession["codeVersion"] as? String ?? "")
+      frame.mount(rendered: renderer.makeFrame(request), in: scene)
       mounted = true
     }
     if mounted { reportHost() }
@@ -828,6 +787,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
           self.latestSession = session
           self.sequence = project["sequence"] as? Int ?? self.sequence
           self.entries = records
+        for (id, frame) in self.frames {
+          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
+        }
           self.orderedIds = order
           self.reconcile(order: order)
           self.fit()
@@ -1074,7 +1036,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
 
   // MARK: Runtime
 
-  private func request(_ path: String, body: [String: Any]? = nil, completion: @escaping (Result<[String: Any], Error>) -> Void) {
+  private func request(_ path: String, body: [String: Any]? = nil, completion: @escaping @MainActor @Sendable (Result<[String: Any], Error>) -> Void) {
     guard let runtime, let url = URL(string: "\(runtime.absoluteString)/api/\(path)") else { return }
     var request = URLRequest(url: url)
     request.timeoutInterval = 3
@@ -1084,6 +1046,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       request.httpBody = try? JSONSerialization.data(withJSONObject: body)
     }
     URLSession.shared.dataTask(with: request) { data, response, error in
+      DispatchQueue.main.async {
       let result: Result<[String: Any], Error>
       do {
         if let error { throw error }
@@ -1093,7 +1056,8 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
         }
         result = .success(json)
       } catch { result = .failure(error) }
-      DispatchQueue.main.async { completion(result) }
+      completion(result)
+      }
     }.resume()
   }
   private func refresh() {
@@ -1125,6 +1089,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
         self.latestSession = session
         self.orderedIds = order
         self.entries = records
+        for (id, frame) in self.frames {
+          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
+        }
         if !wasSelecting && !self.selectionPending && generation == self.selectionGeneration {
           self.selectedId = (session["selection"] as? [String])?.first
         }
@@ -1145,6 +1112,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     let visible = Array(order.prefix(maxScreens))
     for id in frames.keys.filter({ !visible.contains($0) }) {
       guard let frame = frames.removeValue(forKey: id) else { continue }
+      frame.rendered?.dispose()
       frame.contentWindow?.isHidden = true
       frame.contentWindow = nil
       frame.label.removeFromSuperview()
@@ -1303,6 +1271,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
           if let project = self.latestSession["project"] as? [String: Any], let document = project["document"] as? [String: Any],
             let records = document["screens"] as? [String: [String: Any]], let order = document["screenIds"] as? [String] {
             self.entries = records
+        for (id, frame) in self.frames {
+          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
+        }
             self.orderedIds = order
             self.reconcile(order: order)
             self.select(id, reveal: true)
@@ -1451,13 +1422,13 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       } else {
         let count = response["readyCount"] as? Int ?? 0
         if ["ready", "degraded"].contains(response["phase"] as? String ?? "") {
-          let sdk = Bundle.main.object(forInfoDictionaryKey: "CanvasExpoSDK") as? Int ?? 54
+          let rendererName = self.renderer.name
           let waiting = response["waitingCount"] as? Int ?? 0
           let needsState = response["needsStateCount"] as? Int ?? 0
           let failures = response["screenErrorCount"] as? Int ?? 0
           let pending = waiting + needsState
           let coverage = (pending > 0 ? " · \(pending) need state or parameters" : "") + (failures > 0 ? " · \(failures) frame errors" : "")
-          self.setStatus("\(count) frames running\(coverage) · Expo SDK \(sdk) · iOS on Mac", .ready)
+          self.setStatus("\(count) frames running\(coverage) · \(rendererName) · iOS on Mac", .ready)
         } else {
           self.setStatus("Loading screens · \(count) of \(mountedCount) current", .busy)
         }

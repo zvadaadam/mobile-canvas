@@ -1,3 +1,4 @@
+import { adapterForDocument } from "./adapters/index";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, stat, mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -7,15 +8,14 @@ import { StudioControlSchema, StudioInspectSchema, StudioReportSchema, StudioCap
 import { digest, type ProjectStore } from "./project";
 import { CanvasError } from "./errors";
 import { repository } from "./paths";
-import { authoredHostPaths, cacheDirectory, nativeAppPath } from "./installation";
-import { matchedHostPaths } from "./host/matched";
+import { cacheDirectory, nativeAppPath } from "./installation";
 import { identityOf, type Operation, type Screen } from "../shared/model";
 import { chooseRouteExample, routeExamples } from "./route-examples";
 import { paramsForScreenRoute } from "../shared/route-samples";
 
 type Receipt = StudioReport & { receivedAt: number };
 /** Frames are created for every screen; the host mounts React roots as they scroll into view and keeps them. */
-const maxScreens = 32;
+
 type Pending = { id: number; type: "focus" | "reset" | "fit" | "stop" | "capture" | "zoom"; screenId?: string; scale?: number; from?: string };
 
 /** Disposable native-host presence over the existing project, never another document. */
@@ -41,6 +41,18 @@ export class NativeStudio {
   /** A screen to reveal at 100% once the host has laid out its frames, like opening a URL. */
   private reveal: string | null = null;
   constructor(private store: ProjectStore, private launch: typeof spawn = spawn) {}
+  private get maxScreens() { return this.store.session().project.document.nativePreview ? 128 : 32; }
+  private buildOutput() {
+    const document = this.store.session().project.document;
+    return adapterForDocument(document).paths(this.store.directory, document).output;
+  }
+  private foreground() {
+    return new Promise<void>((resolve, reject) => {
+      const child = this.launch("open", ["-a", nativeAppPath(this.buildOutput())], { stdio: "ignore" });
+      child.once("error", reject);
+      child.once("close", code => code === 0 ? resolve() : reject(new CanvasError("studio_activation", "Could not bring this native canvas forward.")));
+    });
+  }
   private currentResolverVersion() {
     const { resolver, appPreview, origin, screens } = this.store.session().project.document;
     const pagers = [...new Map(Object.values(screens).map((screen: any) => screen.props?.route?.step?.pager).filter(Boolean).map((pager: any) => [pager.file, pager])).values()];
@@ -52,16 +64,17 @@ export class NativeStudio {
   state() {
     const now = Date.now();
     const session = this.store.session();
+    const maxScreens = this.maxScreens;
     const candidates = session.project.document.screenIds.slice(0, maxScreens);
     const connected = !!this.child && !!this.host && now - this.host.receivedAt < 3000;
     // Readiness is judged over the frames the host has actually mounted; unmounted frames wait offscreen.
     const mounted = connected && this.host?.kind === "host" ? new Set(this.host.screenIds) : null;
     const expected = mounted ? candidates.filter((id) => mounted.has(id)) : candidates;
     const screens = [...this.screens.values()].filter((screen) => screen.kind === "screen" && expected.includes(screen.screenId)).map((screen) => ({ ...screen,
-      current: connected && screen.kind === "screen" && screen.codeVersion === session.codeVersion && now - screen.receivedAt < 3000 }));
+      current: connected && screen.kind === "screen" && screen.codeVersion === session.codeVersion && (!session.nativeVersion || screen.nativeVersion === session.nativeVersion) && now - screen.receivedAt < 3000 }));
     const readyCount = screens.filter((screen) => screen.current && !screen.error).length;
     const waitingCount = screens.filter(screen => screen.current && screen.kind === "screen" && (screen.state.routePreview as any)?.status === "waiting-for-link").length;
-    const needsStateCount = screens.filter(screen => screen.current && screen.kind === 'screen' && (screen.state.routePreview as any)?.status === 'needs-state').length;
+    const needsStateCount = screens.filter(screen => screen.current && screen.kind === 'screen' && ((screen.state.routePreview as any)?.status === 'needs-state' || (screen.state.nativePreview as any)?.status === 'unavailable')).length;
     const screenErrorCount = screens.filter(screen => screen.current && screen.error).length;
     const error = this.error ?? this.host?.error
       ?? (session.project.document.screenIds.length > maxScreens ? `This host supports ${maxScreens} screens. Remove extra frames or split the project.` : null);
@@ -71,7 +84,7 @@ export class NativeStudio {
     const resolverCurrent = !this.child || this.resolverVersion === this.currentResolverVersion();
     // The JavaScript runtime is shared, so console output is reported once, not per frame.
     const consoleLines = [...new Set(screens.flatMap((screen) => (screen.kind === "screen" ? screen.console ?? [] : [])))].slice(-8);
-    return { renderer: "ios-on-mac", experimental: true, sdk: this.child ? this.sdk : session.project.document.appPreview?.sdk ?? 54, maxScreens, mountedCount: mounted ? expected.length : 0, screenCount: session.project.document.screenIds.length, console: consoleLines,
+    return { renderer: "ios-on-mac", experimental: true, adapter: session.project.document.nativePreview ? "swift-ios" : "expo", sdk: session.project.document.nativePreview ? null : this.child ? this.sdk : session.project.document.appPreview?.sdk ?? 54, maxScreens, mountedCount: mounted ? expected.length : 0, screenCount: session.project.document.screenIds.length, console: consoleLines,
       hostId: this.hostId, starting: !!this.child && !this.host, connected, ready, phase, readyCount, waitingCount, needsStateCount, screenErrorCount, expectedCount: expected.length,
       resolverCurrent, notice: resolverCurrent ? null : "The project's module resolver changed after this canvas opened. Stop and reopen the canvas to apply it.",
       previewEnvironment: session.project.document.appPreview?.offline ? "design" : "app",
@@ -84,12 +97,11 @@ export class NativeStudio {
     if (this.child) {
       // Already open: bring the window forward and reveal the requested screen.
       if (request.screen) this.commands.set("host", { id: ++this.commandId, type: "focus", screenId: request.screen });
-      const output = this.store.session().project.document.appPreview ? matchedHostPaths(this.store.directory).output : authoredHostPaths.output;
-      const foreground = this.launch("open", [nativeAppPath(output)], { stdio: "ignore" });
-      foreground.on("error", (error) => { this.error = error.message; });
+      void this.foreground().catch(error => { this.error = error.message; });
       return this.state();
     }
     if (process.platform !== "darwin" || process.arch !== "arm64") throw new CanvasError("studio_unavailable", "Native Studio requires an Apple-silicon Mac.");
+    const maxScreens = this.maxScreens;
     if (this.store.session().project.document.screenIds.length > maxScreens)
       throw new CanvasError("studio_capacity", `This native host supports up to ${maxScreens} screens.`);
     this.hostId = randomUUID(); this.host = undefined; this.screens.clear(); this.commands.clear(); this.error = null; this.logs = [];
@@ -122,6 +134,7 @@ export class NativeStudio {
       throw new CanvasError("studio_identity", "This native host does not belong to the open studio session.", 409);
     const receipt = { ...report, receivedAt: Date.now() };
     if (report.kind === "host") {
+      if (this.host?.kind === "host" && this.host.pid !== report.pid) this.screens.clear();
       this.host = receipt;
       // The host reports after its first layout, so the requested screen's frame exists by now.
       if (this.reveal) {
@@ -172,7 +185,7 @@ export class NativeStudio {
     try {
       // Route guards and mount effects in background frames must not steal the
       // camera when another frame navigates or a source edit reloads the map.
-      if (this.store.session().project.document.appPreview && (this.host?.kind !== "host" || this.host.focusedScreenId !== report.screenId)) return;
+      if ((this.store.session().project.document.appPreview || this.store.session().project.document.nativePreview) && (this.host?.kind !== "host" || this.host.focusedScreenId !== report.screenId)) return;
       const request = report.state.navigationTarget;
       const route = target.props.route;
       if (request && typeof request === "object" && !Array.isArray(request) && request.key === target.key && typeof request.href === "string"
@@ -228,6 +241,10 @@ export class NativeStudio {
     this.commands.set("host", command);
     let completed = false;
     try {
+      // iOS-on-Mac can keep stale pixels while inactive even as model receipts
+      // advance. Activate this project's window before waiting for fresh output.
+      await this.foreground();
+      const activatedAt = Date.now();
       const deadline = Date.now() + 15_000;
       while (true) {
         this.store.assertIdentity(input);
@@ -237,7 +254,7 @@ export class NativeStudio {
         if (host?.kind === "host" && host.acknowledged >= command.id && host.focusedScreenId !== screen.id)
           throw new CanvasError("inspection_interrupted", "Focus moved to another screen. Inspect again when ready.", 409);
         if (host?.kind === "host" && host.acknowledged >= command.id && host.focusedScreenId === screen.id && host.settled
-          && receipt?.kind === "screen" && receipt.codeVersion === this.store.session().codeVersion && Date.now() - receipt.receivedAt < 3000) break;
+          && receipt?.kind === "screen" && receipt.receivedAt >= activatedAt && receipt.codeVersion === this.store.session().codeVersion && (!this.store.session().nativeVersion || receipt.nativeVersion === this.store.session().nativeVersion) && Date.now() - receipt.receivedAt < 3000) break;
         if (Date.now() >= deadline) throw new CanvasError("inspection_timeout", "The screen did not settle in time. Check its native state and try again.");
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -278,7 +295,7 @@ export class NativeStudio {
         if (input.screenId) throw new CanvasError("screen_capture", "The native screen snapshot did not arrive. Inspect again; no canvas image was substituted.");
         method = "screen";
         const { stdout } = await run("ps", ["-p", String(this.host.pid), "-o", "command="], { timeout: 3000 });
-        const output = this.sdk === 54 ? authoredHostPaths.output : matchedHostPaths(this.store.directory).output;
+        const output = this.buildOutput();
         const { executable } = JSON.parse(await readFile(join(output, "build.json"), "utf8"));
         if (typeof executable !== "string" || !/^[A-Za-z0-9_-]+$/.test(executable)
           || !stdout.includes(`/${executable}.app/${executable} `) || !stdout.includes(`--host-id ${this.hostId}`))

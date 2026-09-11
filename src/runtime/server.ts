@@ -1,3 +1,5 @@
+import { importSwift } from "./adapters/swift/import";
+import { readSwiftPreviewCatalog } from "./adapters/swift/catalog";
 import { inspectEnvironment } from "./environment";
 import http from "node:http";
 import { open, readFile, realpath, unlink } from "node:fs/promises";
@@ -119,8 +121,8 @@ export async function startRuntime(options: RuntimeOptions) {
           return json(response, 200, await originDiff(store, files));
         }
         if (path === "/api/environment") {
-          const { appPreview, origin } = store.session().project.document;
-          return json(response, 200, await inspectEnvironment({ project: directory, app: appPreview ? origin?.path : undefined, offline: appPreview?.offline }));
+          const { appPreview, nativePreview, origin } = store.session().project.document;
+          return json(response, 200, await inspectEnvironment({ project: directory, app: appPreview || nativePreview ? origin?.path : undefined, offline: appPreview?.offline }));
         }
         if (path === "/api/studio/state") return json(response, 200, studio.state());
       }
@@ -138,7 +140,8 @@ export async function startRuntime(options: RuntimeOptions) {
           return json(response, 200, studio.state());
         }
         if (path === "/api/command") return json(response, 200, await store.execute(CommandSchema.parse(value)));
-        if (path === "/api/import") return json(response, 200, await store.importSources(value));
+        if (path === "/api/native/catalog") return json(response, 200, await readSwiftPreviewCatalog(store.session()));
+        if (path === "/api/import") return json(response, 200, await (store.session().project.document.nativePreview ? importSwift(store, value) : store.importSources(value)));
         if (path === "/api/origin/apply") return json(response, 200, await originApply(store, value));
         if (path === "/api/arrange") {
           const identity = IdentitySchema.strict().parse(value);

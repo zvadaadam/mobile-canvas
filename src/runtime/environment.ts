@@ -1,3 +1,5 @@
+import { detectProjectAdapter } from "./adapters/index";
+import { loadSwiftProject } from './adapters/swift/project';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
@@ -18,6 +20,7 @@ export type EnvironmentCheck = { id: string; status: 'ready' | 'missing' | 'manu
 /** Read-only installation diagnostics. Never installs tools, accepts licenses or changes signing. */
 export async function inspectEnvironment(options: { app?: string; project?: string; offline?: boolean } = {}, system: { platform: string; arch: string; node: string; team?: string; probe: Probe } = { platform: process.platform, arch: process.arch, node: process.versions.node, team: process.env.EXPO_CANVAS_DEVELOPMENT_TEAM, probe }) {
   const checks: EnvironmentCheck[] = [];
+  const swift = options.app ? await detectProjectAdapter(options.app).then(x=>x === "swift-ios",()=>false) : false;
   const add = (id: string, ready: boolean, detail: string, action: string) => checks.push({ id, status: ready ? 'ready' : 'missing', detail, ...(!ready ? { action } : {}) });
   add('mac', system.platform === 'darwin' && system.arch === 'arm64', `${system.platform} / ${system.arch}`, 'Native Canvas requires an Apple-silicon Mac. On Apple silicon, use an arm64 Node installation rather than Rosetta.');
   const [major, minor] = system.node.split('.').map(Number);
@@ -28,15 +31,31 @@ export async function inspectEnvironment(options: { app?: string; project?: stri
   }));
   const xcode = results[0]?.match(/^Xcode (\d+)(?:\.(\d+))?/m);
   let app: Awaited<ReturnType<typeof appDependencies>> | undefined;
-  if (options.app) {
+  if (options.app && !swift) {
     try { app = await appDependencies(options.app); }
     catch { checks.push({ id: 'app', status: 'missing', detail: 'Cannot read the app package manifest.', action: 'Pass --app with a readable Expo app directory.' }); }
+  }
+  if (swift) {
+    checks.push({id:"swift-project",status:"ready",detail:"Native Swift project detected. Expo and CocoaPods are not required by the Swift adapter."});
+    if (system.platform === 'darwin') {
+      try {
+        const spec = await loadSwiftProject(options.app!);
+        if (spec.buildIssues?.length) checks.push({id:'swift-build-integration',status:'manual',
+          detail:'Canvas can display the source map, but cannot yet build this app’s live previews.',
+          action:spec.buildIssues.join('\n')});
+        if (spec.buildInputs?.some(path=>path.endsWith('.metal')) || spec.buildIssues?.some(issue=>/\.metal\b/.test(issue))) {
+          const metal = await system.probe('xcrun',['metal','--version']);
+          add('metal-toolchain',metal !== null,metal !== null ? 'Metal compiler is installed.' : 'This app contains Metal shaders, but the Metal compiler is unavailable.',
+            'Install the Xcode component with: xcodebuild -downloadComponent MetalToolchain. This enables shader compilation; Canvas build integration is a separate requirement.');
+        }
+      } catch (error) { checks.push({id:'swift-project-build',status:'manual',detail:`Could not inspect the Xcode target: ${(error as Error).message}`}); }
+    }
   }
   const sdk = Number(app?.installedExpo?.split('.')[0]);
   const minimumMinor = sdk === 57 ? 4 : 0;
   add('xcode', !!xcode && (Number(xcode[1]) > 26 || Number(xcode[1]) === 26 && Number(xcode[2] ?? 0) >= minimumMinor), xcode?.[0] ?? 'Full Xcode is unavailable to the command line.', `Install compatible Xcode (26${minimumMinor ? '.4' : ''} or newer), open it once, and select it in Xcode Settings → Locations → Command Line Tools. SDK and package requirements may be stricter.`);
   add('xcode-first-launch', results[1] !== null, results[1] !== null ? 'Xcode first-launch setup is complete.' : 'Xcode first-launch setup has not passed.', 'Open Xcode and finish its license, components and first-launch setup.');
-  add('cocoapods', results[2] !== null, results[2] ? `CocoaPods ${results[2].split('\n').at(-1)}` : 'CocoaPods is not available.', 'Install CocoaPods and make the pod command available in PATH.');
+  if (!swift) add('cocoapods', results[2] !== null, results[2] ? `CocoaPods ${results[2].split('\n').at(-1)}` : 'CocoaPods is not available.', 'Install CocoaPods and make the pod command available in PATH.');
   const hasIdentity = /"Apple Development:|"iPhone Developer:/.test(results[3] ?? '');
   checks.push({ id: 'signing-identity', status: hasIdentity ? 'ready' : 'manual', detail: hasIdentity ? 'A development signing identity is available.' : 'No available development signing identity was found.', ...(!hasIdentity ? { action: 'Add your Apple account in Xcode Settings → Accounts and configure development signing. Xcode may create the identity during the first build.' } : {}) });
   const team = system.team ?? await signingTeam(options.project);

@@ -42,3 +42,16 @@ test("arrange by flow builds rows by depth from the entry, orders columns by par
   assert.notEqual(at("today-editorial").y, at("today-morning").y, "variants of one base stack without overlapping");
   assert.deepEqual(arrangeByFlow({ ...doc, screens: Object.fromEntries(Object.entries(doc.screens).map(([id, screen]) => [id, { ...screen, ...(position[screen.key] ?? {}) }])) }), [], "an arranged document yields no moves");
 });
+
+test('native scene families wrap without overlapping destinations and preserve deterministic layout',()=>{
+  const doc=document([{key:'root',links:['state-0']},...Array.from({length:8},(_,i)=>({key:`state-${i}`,links:i===7?['detail']:[]})),{key:'detail'}]);
+  for(let i=0;i<8;i++) doc.screens[`screen-${i+1}`].props={native:{scene:{id:'Root.page',index:i}}};
+  for(const move of arrangeByFlow(doc)) Object.assign(doc.screens[move.id],move.patch);
+  assert.equal(doc.screens['screen-1'].y,doc.screens['screen-6'].y);
+  assert.ok(doc.screens['screen-7'].y>doc.screens['screen-1'].y);
+  const screens=Object.values(doc.screens);
+  for(let i=0;i<screens.length;i++) for(const b of screens.slice(i+1)) {
+    const a=screens[i];assert.ok(a.x+a.width<=b.x || b.x+b.width<=a.x || a.y+a.height<=b.y || b.y+b.height<=a.y);
+  }
+  assert.deepEqual(arrangeByFlow(doc),[]);
+});

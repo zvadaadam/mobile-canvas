@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SwiftProjectSchema } from "./native";
 
 export interface Geometry {
   x: number;
@@ -19,7 +20,7 @@ export const Id = z
 export const SourcePath = z
   .string()
   .max(240)
-  .regex(/^(screens|components|lib)\/[a-zA-Z0-9_./()-]+\.tsx?$/)
+  .regex(/^(screens|components|lib)\/[a-zA-Z0-9_./()-]+\.(?:tsx?|swift)$/)
   .refine(
     (path) =>
       path
@@ -129,7 +130,7 @@ export const ScreenSchema = z
     height: z.number().min(240).max(3000).default(874),
     props: Props.default({}),
     notes: z.string().max(4000).default(""),
-    links: z.array(Key).max(32).default([]),
+    links: z.array(Key).max(128).default([]),
   })
   .strict();
 export type Screen = z.infer<typeof ScreenSchema>;
@@ -140,6 +141,7 @@ export const DocumentSchema = z
     screens: z.record(Id, ScreenSchema),
     resolver: ResolverSchema.optional(),
     origin: OriginSchema.optional(),
+    nativePreview: SwiftProjectSchema.optional(),
     appPreview: z.object({ sdk: z.union([z.literal(56), z.literal(57)]), routesDirectory: z.string().min(1).max(300), offline: z.boolean().optional() }).strict().optional(),
   })
   .strict()
@@ -165,7 +167,7 @@ export const DocumentSchema = z
   });
 export const ProjectSchema = z
   .object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     workspaceId: z.uuid(),
     sequence: z.number().int().nonnegative(),
     document: DocumentSchema,
@@ -180,6 +182,9 @@ export const CreateScreenSchema = ScreenSchema.omit({ id: true }).extend({
   y: ScreenSchema.shape.y.default(0),
 });
 export const OperationSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("native.refresh"), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  z.object({ type: z.literal("native.context"), context: z.enum(['isolated','application']) }).strict(),
+  z.object({ type: z.literal("native.override"), appPath: z.string().max(500), source: SourcePath.nullable(), expectedHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z
     .object({ type: z.literal("screen.create"), screen: CreateScreenSchema })
     .strict(),
@@ -235,7 +240,7 @@ export const IdentitySchema = z.object({
 export const CommandSchema = IdentitySchema.extend({
   requestId: z.string().min(1).max(128),
   label: z.string().min(1).max(140).default("Edit canvas"),
-  operations: z.array(OperationSchema).min(1).max(64),
+  operations: z.array(OperationSchema).min(1).max(128),
 }).strict();
 export type Command = z.infer<typeof CommandSchema>;
 export type Operation = z.infer<typeof OperationSchema>;
@@ -244,6 +249,7 @@ export interface Session {
   project: Project;
   directory: string;
   codeVersion: string;
+  nativeVersion?: string;
   sources: { path: string; hash: string }[];
   selection: string[];
   history: { canUndo: boolean; canRedo: boolean; undoLabel: string | null };

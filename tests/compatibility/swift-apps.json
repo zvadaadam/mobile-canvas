@@ -1,0 +1,49 @@
+[
+  {
+    "id": "bettermind",
+    "local": "/Users/zvada/Developer/mind/bettermind-ios/.conductor/santa-fe-v1",
+    "revision": "5f92173576d9e80b83b61a80c08cce77c4cb7ed2",
+    "sourceFiles": 310,
+    "destinations": 68,
+    "links": 86,
+    "sourcePreviews": 144,
+    "requiredLinks": [
+      [
+        "HomeContainerView",
+        "SettingsView"
+      ],
+      [
+        "HomeContainerView",
+        "VoiceChatView"
+      ],
+      [
+        "SessionDetailView",
+        "EditSessionSummaryView"
+      ],
+      [
+        "SettingsView",
+        "AppFeedbackView"
+      ],
+      [
+        "OnboardingContainerView",
+        "OKNameView"
+      ],
+      [
+        "OnboardingContainerView",
+        "OKAgeView"
+      ]
+    ],
+    "nativeProject": ".context/bettermind-xcode-canvas",
+    "liveAppPreview": true,
+    "limitations": "Xcode packages, resources and Metal compile in a derived preview target. Isolated context blocks detected startup dependencies; explicit application context runs the original App initializer. Candidate counts are not rendered-content counts. Flow inference is not exhaustive.",
+    "buildStrategy": "xcode",
+    "previewCandidates": 5,
+    "needsAppStartup": 59,
+    "applicationPreviewCandidates": 63,
+    "repairedProviderScreens": [
+      "paywallcontainerview"
+    ],
+    "frames": 71,
+    "sceneFrames": 31
+  }
+]

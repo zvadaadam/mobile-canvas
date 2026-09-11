@@ -1,3 +1,5 @@
+import { swiftInputFiles, loadSwiftProject, isSwiftInput } from "./adapters/swift/project";
+import type { SwiftProject } from "../shared/native";
 import { createHash, randomUUID } from "node:crypto";
 import {
   mkdir,
@@ -67,15 +69,16 @@ export class ProjectStore {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private selection: string[] = [];
-  private receipts = new Map<string, { hash: string; result: CommandResult | ImportResult }>();
+  private receipts = new Map<string, { hash: string; result: Promise<unknown>; settled: boolean }>();
   private mutex = createMutex();
   private listeners = new Set<() => void>();
   private watching = new AbortController();
   private codeVersion = "";
+  private nativeVersion: string | undefined;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private constructor(readonly directory: string) {}
 
-  static async initialize(directory: string, name: string) {
+  static async initialize(directory: string, name: string, native?: { spec: SwiftProject; app: string }) {
     await mkdir(directory, { recursive: true });
     const store = new ProjectStore(await realpath(directory));
     const target = await projectPath(store.directory, manifest);
@@ -92,10 +95,10 @@ export class ProjectStore {
       target,
       JSON.stringify(
         ProjectSchema.parse({
-          version: 1,
+          version: native ? 2 : 1,
           workspaceId: randomUUID(),
           sequence: 0,
-          document: { name, screenIds: [], screens: {} },
+          document: { name, screenIds: [], screens: {}, ...(native ? { nativePreview: native.spec, origin: { path: native.app, name, mode: "linked", root: "", commit: null, importedAt: Date.now(), files: {} } } : {}) },
         }),
         null,
         2,
@@ -138,6 +141,8 @@ export class ProjectStore {
       );
       void store.watchSources(join(store.directory, sourceRoot));
     }
+    if (store.project.document.nativePreview && store.project.document.origin)
+      void store.watchSources(store.project.document.origin.path, true);
     return store;
   }
 
@@ -183,7 +188,7 @@ export class ProjectStore {
           await scan(path);
           continue;
         }
-        if (!/\.tsx?$/.test(entry.name)) continue;
+        if (!/\.(tsx?|swift)$/.test(entry.name)) continue;
         SourcePath.parse(path);
         if (Object.keys(files).length >= sourceLimit)
           throw new CanvasError(
@@ -195,9 +200,15 @@ export class ProjectStore {
     };
     for (const folder of ["screens", "components", "lib"]) await scan(folder);
     this.files = files;
+    const native = this.project.document.nativePreview;
+    if (native && this.project.document.origin) {
+      const inputs = await swiftInputFiles(this.project.document.origin.path, native, {allowMissing: true});
+      this.nativeVersion = digest(JSON.stringify({ inputs: inputs.map(x => [x.path, digest(x.bytes)]), files, native, recipes: Object.values(this.project.document.screens).map(s => [(s.props.native as any)?.factory, (s.props.native as any)?.recipe]) }));
+    }
     this.codeVersion = digest(
       JSON.stringify({
         files,
+        nativeVersion: this.nativeVersion,
         resolver: this.project.document.resolver ?? null,
         appPreview: this.project.document.appPreview ?? null,
         screens: this.project.document.screenIds.map((id) => {
@@ -209,13 +220,15 @@ export class ProjectStore {
     );
   }
 
-  private async watchSources(folder: string) {
+  private async watchSources(folder: string, nativeInputs = false) {
     try {
       for await (const event of watch(folder, {
         recursive: true,
         signal: this.watching.signal,
       })) {
-        if (!event.filename || !/\.tsx?$/.test(event.filename)) continue;
+        if (!event.filename) continue;
+        const native = this.project.document.nativePreview;
+        if (nativeInputs ? !native || !isSwiftInput(native, event.filename) : !/\.(tsx?|swift)$/.test(event.filename)) continue;
         clearTimeout(this.refreshTimer);
         this.refreshTimer = setTimeout(
           () =>
@@ -240,6 +253,7 @@ export class ProjectStore {
   }
 
   private async writeRegistry() {
+    if (this.project.document.nativePreview) return;
     const { appPreview, origin } = this.project.document;
     if (appPreview && origin?.mode === "linked") {
       const contents = await routeContext(origin.path, appPreview.routesDirectory);
@@ -277,6 +291,7 @@ export class ProjectStore {
       project: this.project,
       directory: this.directory,
       codeVersion: this.codeVersion,
+      ...(this.nativeVersion ? { nativeVersion: this.nativeVersion } : {}),
       sources: Object.entries(this.files).map(([path, code]) => ({
         path,
         hash: digest(code),
@@ -334,6 +349,16 @@ export class ProjectStore {
   async readRouteSource(screenId: string) {
     const { origin, screens, resolver } = this.project.document;
     const screen = screens[screenId];
+    if (screen && this.project.document.nativePreview && origin) {
+      const native = screen.props.native as {file?: string} | undefined;
+      if (!native?.file) throw new CanvasError("invalid_source", "This native entry has no original source.");
+      if (!this.project.document.nativePreview.files.includes(native.file)) throw new CanvasError("invalid_source", "Unknown native source.");
+      const override = this.project.document.nativePreview.overrides[native.file];
+      if (override) return {screenId, appPath:native.file, origin:origin.path, overridden:true, ...await this.readSource(override)};
+      const path = await projectPath(origin.path, native.file);
+      const code = (await readRegularFileBounded(path, 1_000_000)).toString("utf8");
+      return {screenId, appPath:native.file, origin:origin.path, overridden:false, path, code, hash:digest(code), suggestedOverride:`lib/${native.file}`};
+    }
     const route = screen?.props.route;
     if (!screen || !origin || !route || typeof route !== "object" || Array.isArray(route) || typeof route.file !== "string" || !/\.[jt]sx?$/.test(route.file))
       throw new CanvasError("invalid_screen", "Choose an imported route from canvas_route_map.");
@@ -354,6 +379,7 @@ export class ProjectStore {
         "source_limit",
         "A source file supports at most 100 KB of UTF-8 bytes",
       );
+    if (path.endsWith(".swift")) return; // Swift diagnostics are returned by the native compiler.
     const result = ts.transpileModule(code, {
       fileName: path,
       reportDiagnostics: true,
@@ -439,20 +465,35 @@ export class ProjectStore {
     await this.writeRegistry();
   }
 
-  execute(input: Command): Promise<CommandResult> {
-    return this.mutex.run(async () => {
-      const command = CommandSchema.parse(input);
-      const hash = digest(JSON.stringify(command));
-      const receipt = this.receipts.get(command.requestId);
-      if (receipt) {
-        if (receipt.hash !== hash)
-          throw new CanvasError(
-            "request_reused",
-            "A request ID cannot be reused with different edits",
-            409,
-          );
-        return receipt.result as CommandResult;
+  /** One request namespace for commands and adapter imports, including retries
+   * that arrive while an import is still discovering its source map. */
+  async runRequest<T>(request: {requestId: string}, action: () => Promise<T>): Promise<T> {
+    const hash = digest(JSON.stringify(request));
+    const existing = this.receipts.get(request.requestId);
+    if (existing) {
+      if (existing.hash !== hash)
+        throw new CanvasError("request_reused", "A request ID cannot be reused with different edits", 409);
+      return existing.result as Promise<T>;
+    }
+    const receipt = {hash, result: Promise.resolve().then(action), settled: false};
+    this.receipts.set(request.requestId, receipt);
+    try {
+      const result = await receipt.result;
+      receipt.settled = true;
+      for (const [id, entry] of this.receipts) {
+        if (this.receipts.size <= 200) break;
+        if (entry.settled) this.receipts.delete(id);
       }
+      return result;
+    } catch (error) {
+      this.receipts.delete(request.requestId);
+      throw error;
+    }
+  }
+
+  async execute(input: Command): Promise<CommandResult> {
+    const command = CommandSchema.parse(input);
+    return this.runRequest(command, () => this.mutex.run(async () => {
       this.assertIdentity(command);
       const before = structuredClone(this.project.document),
         document = structuredClone(before);
@@ -555,6 +596,30 @@ export class ProjectStore {
             if (file === null) delete resolver.modules[name];
             else resolver.modules[name] = file;
           document.resolver = resolver;
+        } else if (operation.type === "native.refresh") {
+          if (!document.nativePreview?.projectFile || !document.origin) throw new CanvasError("invalid_project", "Choose a linked Xcode target.");
+          const path = await projectPath(document.origin.path, document.nativePreview.projectFile);
+          if (digest(await readRegularFileBounded(path, 4_000_000)) !== operation.expectedHash)
+            throw new CanvasError("source_conflict", "The Xcode project changed during import. Import again.", 409);
+          const refreshed = await loadSwiftProject(document.origin.path);
+          if (refreshed.target !== document.nativePreview.target || refreshed.projectFile !== document.nativePreview.projectFile)
+            throw new CanvasError("invalid_project", "The selected Xcode target changed. Create a new experiment.");
+          document.nativePreview = {...refreshed, overrides: document.nativePreview.overrides, ...(document.nativePreview.context ? {context:document.nativePreview.context} : {})};
+        } else if (operation.type === "native.context") {
+          if (!document.nativePreview) throw new CanvasError("invalid_project", "Choose a Swift project.");
+          document.nativePreview.context=operation.context;
+        } else if (operation.type === "native.override") {
+          if (!document.nativePreview || !document.origin || !document.nativePreview.files.includes(operation.appPath))
+            throw new CanvasError("invalid_source", "Choose a Swift source from this project's native input list.");
+          const original = await readRegularFileBounded(await projectPath(document.origin.path, operation.appPath), 1_000_000);
+          if (digest(original) !== operation.expectedHash) throw new CanvasError("source_conflict", "The original Swift source changed. Read it again before creating an override.", 409);
+          if (operation.source === null) delete document.nativePreview.overrides[operation.appPath];
+          else {
+            if (!operation.source.startsWith("lib/") || !operation.source.endsWith(".swift") || await source(operation.source) === null)
+              throw new CanvasError("invalid_source", "Create a Swift override under lib/ in this transaction first.");
+            document.nativePreview.overrides[operation.appPath] = operation.source;
+            document.origin.files[operation.source] = {from: operation.appPath, hash: operation.expectedHash};
+          }
         } else document.name = operation.name;
       }
       DocumentSchema.parse(document);
@@ -581,12 +646,9 @@ export class ProjectStore {
       if (this.undoStack.length > 50) this.undoStack.shift();
       this.redoStack = [];
       const result = { session: this.session(), created };
-      this.receipts.set(command.requestId, { hash, result });
-      if (this.receipts.size > 200)
-        this.receipts.delete(this.receipts.keys().next().value!);
       this.emit();
       return result;
-    });
+    }));
   }
 
   /**
@@ -594,20 +656,11 @@ export class ProjectStore {
    * transaction, recording provenance and the app's import alias. The original
    * app is read, never written.
    */
-  importSources(input: unknown): Promise<ImportResult> {
-    return this.mutex.run(async () => {
-      const request = ImportSchema.parse(input);
-      const hash = digest(JSON.stringify(request));
-      const receipt = this.receipts.get(request.requestId);
-      if (receipt) {
-        if (receipt.hash !== hash)
-          throw new CanvasError(
-            "request_reused",
-            "A request ID cannot be reused with different edits",
-            409,
-          );
-        return receipt.result as ImportResult;
-      }
+  async importSources(input: unknown): Promise<ImportResult> {
+    const request = ImportSchema.parse(input);
+    if(request.swiftPreviews?.length) throw new Error('Selected native component previews require a Swift project.');
+    if (request.swiftContext) throw new CanvasError('invalid_adapter', 'Swift context is only available for a Swift project.', 400);
+    return this.runRequest(request, () => this.mutex.run(async () => {
       this.assertIdentity(request);
       const plan = await planImport(this.directory, request);
       const before = structuredClone(this.project.document),
@@ -739,12 +792,9 @@ export class ProjectStore {
         session: this.session(),
         import: { ...report, copiedModules },
       };
-      this.receipts.set(request.requestId, { hash, result });
-      if (this.receipts.size > 200)
-        this.receipts.delete(this.receipts.keys().next().value!);
       this.emit();
       return result;
-    });
+    }));
   }
 
   history(direction: "undo" | "redo", identity: Identity) {

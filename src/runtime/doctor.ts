@@ -14,7 +14,7 @@ export async function doctor(client: CanvasClient) {
   const document = session.project.document;
   const designSubstitutions: string[] = [];
   let app: Awaited<ReturnType<typeof appDependencies>> | null = null;
-  if (document.origin?.mode === "linked") {
+  if (document.origin?.mode === "linked" && !document.nativePreview) {
     try {
       app = await appDependencies(document.origin.path);
       if (document.appPreview?.offline) designSubstitutions.push(...[...excluded, ...iconPackages].filter(name => app!.versions[name] || app!.missing.includes(name)));
