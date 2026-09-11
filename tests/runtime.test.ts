@@ -24,7 +24,7 @@ test("MCP --app bootstraps a separate route map without executing or copying app
   await writeFile(join(app, "app/index.tsx"), code);
   const mcp = new Client({ name: "dropin-test", version: "1" });
   t.after(async () => { await mcp.close(); await rm(directory, { recursive: true, force: true }); });
-  await mcp.connect(new StdioClientTransport({ command: process.execPath, args: [join(repository, "bin/expo-canvas.mjs"), "mcp", "--app", app, "--project", project], stderr: "pipe" }));
+  await mcp.connect(new StdioClientTransport({ command: process.execPath, args: [join(repository, "bin/mobile-canvas.mjs"), "mcp", "--app", app, "--project", project], stderr: "pipe" }));
   const result = await mcp.callTool({ name: "canvas_route_map", arguments: {} });
   assert.ok(!result.isError, JSON.stringify(result));
   const map = JSON.parse((result.content as any)[0].text);
@@ -57,7 +57,7 @@ test("CLI, MCP and HTTP share one project, transaction executor and human select
   const client = new CanvasClient(runtime.url);
   assert.equal(await discoverRuntime(directory), runtime.url);
   const attached = await promisify(execFile)(process.execPath, [
-    join(repository, "bin/expo-canvas.mjs"), "serve", "--project", directory,
+    join(repository, "bin/mobile-canvas.mjs"), "serve", "--project", directory,
   ]);
   assert.ok(attached.stderr.includes(runtime.url));
   assert.match(attached.stderr, /already running/);
@@ -70,7 +70,7 @@ test("CLI, MCP and HTTP share one project, transaction executor and human select
     new StdioClientTransport({
       command: process.execPath,
       args: [
-        join(repository, "bin/expo-canvas.mjs"),
+        join(repository, "bin/mobile-canvas.mjs"),
         "mcp",
         "--project",
         directory,
@@ -151,7 +151,7 @@ test("CLI, MCP and HTTP share one project, transaction executor and human select
   });
   assert.deepEqual(JSON.parse((selection.content as any)[0].text).ids, [id]);
   const cli = await promisify(execFile)(process.execPath, [
-    join(repository, "bin/expo-canvas.mjs"),
+    join(repository, "bin/mobile-canvas.mjs"),
     "read",
     "--project",
     directory,

@@ -50,7 +50,7 @@ The 144 source preview declarations remain inventoried; they are not 144 rendere
 Run `npm run test:compat:swift` with the clean private checkout listed in `tests/compatibility/swift-apps.json`. It checks both contexts, provider provenance, source-map links, candidate counts and stable re-import. This static check does not launch the app.
 
 ```sh
-node bin/expo-canvas.mjs open --app /path/to/app --project /path/to/separate-canvas --swift-context application
+node bin/mobile-canvas.mjs open --app /path/to/app --project /path/to/separate-canvas --swift-context application
 ```
 
 The first Xcode build needs signing, SDK components and package downloads. Subsequent builds reuse the experiment's package and DerivedData caches. The verification reused an already-resolved package cache; it is not a cold-install timing benchmark.

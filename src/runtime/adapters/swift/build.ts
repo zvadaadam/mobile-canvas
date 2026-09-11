@@ -25,7 +25,7 @@ export async function prepareSwiftHost(session: Session, signal?: AbortSignal) {
   const app = session.project.document.origin!.path;
   const {host,output} = swiftHostPaths(session.directory);
   const team = await signingTeam(session.directory);
-  if (!team || !/^[A-Z0-9]{10}$/.test(team)) throw new Error('Run expo-canvas setup to choose a development signing team.');
+  if (!team || !/^[A-Z0-9]{10}$/.test(team)) throw new Error('Run mobile-canvas setup to choose a development signing team.');
   const inputs = await swiftInputFiles(app,spec);
   const catalogOnly = !!spec.buildIssues?.length;
   const shellNames = (await readdir(nativeCanvas.sources)).filter(name => name.endsWith('.swift')).sort();
@@ -72,7 +72,7 @@ export async function prepareSwiftHost(session: Session, signal?: AbortSignal) {
   sourceFiles.push(registry);
   const bundleId='dev.expocanvas.swift.p'+createHash('sha256').update(session.directory).digest('hex').slice(0,12);
   const appInfo = !catalogOnly && spec.buildStrategy === 'xcode' ? await readAppInfo(app,spec) : {};
-  const info={...appInfo, CFBundleIdentifier:bundleId,CFBundleExecutable:'CanvasSwift',CFBundleName:'CanvasSwift',CFBundlePackageType:'APPL',CFBundleVersion:'1',CFBundleShortVersionString:'1.0',LSRequiresIPhoneOS:true,
+  const info={...appInfo, CFBundleIdentifier:bundleId,CFBundleExecutable:'CanvasSwift',CFBundleName:'CanvasSwift',CFBundleDisplayName:'Mobile Canvas',CFBundlePackageType:'APPL',CFBundleVersion:'1',CFBundleShortVersionString:'1.0',LSRequiresIPhoneOS:true,
     UISupportsTrueScreenSizeOnMac:true, UIApplicationSupportsIndirectInputEvents:true,
     UISupportedInterfaceOrientations:['UIInterfaceOrientationPortrait','UIInterfaceOrientationPortraitUpsideDown','UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight'],
     UILaunchScreen:{},

@@ -44,8 +44,8 @@ test("native studio isolates host identity, screen readiness and acknowledged fr
   assert.equal(focus?.screenId, created.created.two);
   assert.equal(focus?.from, created.created.one, "the host learns which frame navigated so it can pulse that edge");
   studio.report({ ...host, acknowledged: focus!.id });
-  studio.report({ ...screen(created.created.two), console: ["warn: Expo Canvas: something to look at"] });
-  assert.deepEqual(studio.state().console, ["warn: Expo Canvas: something to look at"], "runtime console output is reported once");
+  studio.report({ ...screen(created.created.two), console: ["warn: Mobile Canvas: something to look at"] });
+  assert.deepEqual(studio.state().console, ["warn: Mobile Canvas: something to look at"], "runtime console output is reported once");
   studio.report(screen(created.created.two));
   assert.equal(studio.state().ready, true);
   const reset = studio.control({ ...identity, hostId: opened.hostId, action: { type: "reset", screenId: created.created.one } });

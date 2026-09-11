@@ -3,7 +3,7 @@ import { resolve, sep, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CanvasError } from "./errors";
 
-/** The Expo Canvas checkout: the CLI entry, the native host and its build live here. */
+/** The Mobile Canvas checkout: the CLI entry, the native host and its build live here. */
 export const repository = fileURLToPath(new URL("../..", import.meta.url));
 
 /** Reject every symlink component, including a directory above an otherwise safe file. */

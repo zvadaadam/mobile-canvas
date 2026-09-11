@@ -10,13 +10,13 @@ import { saveSigningTeam, dataDirectory, cacheDirectory } from './installation';
 import { appDependencies } from './adapters/expo/app-dependencies';
 
 export function formatEnvironment(report: Awaited<ReturnType<typeof inspectEnvironment>>, currentRoot = false) {
-  return ['Expo Canvas · Mac setup', '', ...report.checks.flatMap(check => [
+  return ['Mobile Canvas · Mac setup', '', ...report.checks.flatMap(check => [
     `${check.status === 'ready' ? '✓' : check.status === 'missing' ? '✗' : '·'} ${check.detail}`,
     ...(check.action ? [`  ${check.action}`] : []),
   ]), '', 'Expo is installed per app; no global Expo CLI is needed.',
     'Tool downloads: Xcode — https://developer.apple.com/xcode/ · CocoaPods — https://guides.cocoapods.org/using/getting-started.html · Bun — https://bun.sh/',
     `Settings: ${dataDirectory}`, `Shared cache: ${cacheDirectory}`,
-    report.readyToBuild ? (currentRoot ? 'Ready to build. Run expo-canvas open from this directory.' : 'Ready to build. Run expo-canvas open from your app directory, or pass --app /path/to/app.') : 'Finish the missing steps, then run setup again.',
+    report.readyToBuild ? (currentRoot ? 'Ready to build. Run mobile-canvas open from this directory.' : 'Ready to build. Run mobile-canvas open from your app directory, or pass --app /path/to/app.') : 'Finish the missing steps, then run setup again.',
   ].join('\n');
 }
 

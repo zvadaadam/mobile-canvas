@@ -2,7 +2,7 @@ import type { RouteFrame } from "../../../shared/routes";
 
 /** Native map metadata, explicitly distinct from a rendered app screen. No app imports. */
 export function routeCard(frame: RouteFrame) {
-  return `// Expo Canvas route map: ${frame.file}
+  return `// Mobile Canvas route map: ${frame.file}
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { usePreviewNavigation, usePreviewState } from "@expo-canvas/preview";
 type Props = {

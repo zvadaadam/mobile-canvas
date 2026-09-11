@@ -30,7 +30,7 @@ export function PreviewProvider({
         screens,
         navigate: (key) => {
           if (screens && !screens.includes(key)) {
-            console.warn(`Expo Canvas: no screen with key "${key}" is on this canvas.`);
+            console.warn(`Mobile Canvas: no screen with key "${key}" is on this canvas.`);
             return;
           }
           navigate(key);
@@ -56,7 +56,7 @@ export function usePreviewState<T>(
 ): [T, (value: T | ((previous: T) => T)) => void] {
   const context = use(Context);
   if (!context)
-    throw new Error("Render this component in Expo Canvas's preview host");
+    throw new Error("Render this component in Mobile Canvas's preview host");
   useEffect(() => {
     if (!(key in context.state)) context.set(key, initial);
   }, [key]);

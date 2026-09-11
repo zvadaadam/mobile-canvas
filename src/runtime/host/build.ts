@@ -21,7 +21,7 @@ await mkdir(output, { recursive: true });
 const saved = JSON.parse(await readFile(join(output, 'signing.json'), 'utf8').catch(() => '{}'));
 const team = values.team ?? await signingTeam() ?? saved.team;
 if (!team || !/^[A-Z0-9]{10}$/.test(team))
-  throw new Error("Run expo-canvas setup --team YOURTEAMID before building. Native iOS-on-Mac execution needs development signing.");
+  throw new Error("Run mobile-canvas setup --team YOURTEAMID before building. Native iOS-on-Mac execution needs development signing.");
 await writeFile(join(output, "signing.json"), JSON.stringify({ team }), { mode: 0o600 });
 
 async function run(command: string, args: string[], cwd: string, logName: string, extraEnv: Record<string, string> = {}) {

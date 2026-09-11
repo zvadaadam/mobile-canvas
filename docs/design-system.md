@@ -1,6 +1,6 @@
 # Canvas design system
 
-Expo Canvas follows the current Expo website and dashboard: a light, neutral interface with hairline borders, the official wordmark, Inter for labels, a black primary action and blue reserved for selection. The canvas is a design tool; the interfaces authored inside its frames keep their own app styling and never inherit the canvas palette.
+Mobile Canvas follows the current Expo website and dashboard: a light, neutral interface with hairline borders, the Mobile Canvas text wordmark, Inter for labels, a black primary action and blue reserved for selection. The canvas is a design tool; the interfaces authored inside its frames keep their own app styling and never inherit the canvas palette.
 
 ## Sources
 
@@ -39,7 +39,7 @@ Type: Inter Medium 14 for the project name, 13 for pill labels, 12 for frame nam
 
 ## Rules
 
-- Use the official wordmark without redrawing, tinting or distorting it.
+- Set the Mobile Canvas text wordmark in Inter Medium with the neutral ink color.
 - Default to the light interface; the window overrides to light so app frames are judged consistently.
 - Blue means selection, focus and informational feedback only. Primary actions are black on white; everything else is neutral.
 - Pill-shaped actions, 8 pt grouped controls, 6 pt fields, hairline separators and restrained shadows. Outer frames stay square: they are iPhone screens, not cards.

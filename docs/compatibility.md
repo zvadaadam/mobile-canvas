@@ -27,10 +27,10 @@ git -C .context/hot-chocolate-source checkout --detach 1806f3b8fca27ddd23d554484
 Install each app's dependencies with its declared package manager and lockfile (see its README). Then check the Mac prerequisites and explicitly open the previews:
 
 ```sh
-node bin/expo-canvas.mjs setup --app .context/clarity-source --offline
-node bin/expo-canvas.mjs setup --app .context/hot-chocolate-source
-node bin/expo-canvas.mjs open --app .context/clarity-source --project .context/clarity-design --offline
-node bin/expo-canvas.mjs open --app .context/hot-chocolate-source --project .context/hot-chocolate-six-screen-proof
+node bin/mobile-canvas.mjs setup --app .context/clarity-source --offline
+node bin/mobile-canvas.mjs setup --app .context/hot-chocolate-source
+node bin/mobile-canvas.mjs open --app .context/clarity-source --project .context/clarity-design --offline
+node bin/mobile-canvas.mjs open --app .context/hot-chocolate-source --project .context/hot-chocolate-six-screen-proof
 ```
 
 The first native build requires Xcode/signing setup and app dependencies. The open commands remain running while their canvas is open; use separate terminals for each app and the tests. On subsequent runs, reopen the generated projects with `open --project <path>`.
@@ -51,7 +51,7 @@ To add an app, pin a commit, record its routes/alias root, coverage counts and a
 
 `tests/compatibility/swift-apps.json` records BetterMind at `5f92173576d9e80b83b61a80c08cce77c4cb7ed2`, using the user-provided local checkout. Run `npm run test:compat:swift` on a Mac with that clean pinned checkout. This opt-in test never fetches, checks out, or edits it. It checks 310 Swift input files, 68 recognized destinations, 86 links, 71 state frames, 144 preview declarations, representative flow edges, stable re-import, the Xcode build strategy, five isolated preview candidates and 59 conservative startup blockers, then 63 application-context candidates and provider provenance. The corpus is separate from the portable Expo regression because this private source is not available on every machine.
 
-Open it with `node bin/expo-canvas.mjs open --app /path/to/bettermind-ios --project .context/bettermind-xcode-canvas --swift-context application`. The derived target retains the 22 package products and Metal resources, and omits its widget and upload phases. Setup requires signing and the optional Metal toolchain. Application context executes real service initialization; it does not supply a signed-in user or guarantee populated states. See [Swift build adapters](swift-xcode-builds.md) for measured results and remaining limits.
+Open it with `node bin/mobile-canvas.mjs open --app /path/to/bettermind-ios --project .context/bettermind-xcode-canvas --swift-context application`. The derived target retains the 22 package products and Metal resources, and omits its widget and upload phases. Setup requires signing and the optional Metal toolchain. Application context executes real service initialization; it does not supply a signed-in user or guarantee populated states. See [Swift build adapters](swift-xcode-builds.md) for measured results and remaining limits.
 
 ## Recorded cleanup verification · September 10, 2026
 

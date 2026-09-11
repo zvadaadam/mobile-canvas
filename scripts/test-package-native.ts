@@ -14,15 +14,15 @@ const run = promisify(execFile);
 const team = await signingTeam();
 assert.ok(team, 'Configure an existing development signing team before this explicit native test.');
 const reuse = process.argv.indexOf('--resume');
-const directory = reuse >= 0 ? await realpath(process.argv[reuse + 1]) : await realpath(await mkdtemp(join(tmpdir(), 'Expo Canvas package ')));
+const directory = reuse >= 0 ? await realpath(process.argv[reuse + 1]) : await realpath(await mkdtemp(join(tmpdir(), 'Mobile Canvas package ')));
 if (reuse >= 0) await run('chmod', ['-R', 'u+w', join(directory, 'install')]);
 const env = { ...process.env, EXPO_CANVAS_DATA_DIR: join(directory, 'settings'), EXPO_CANVAS_CACHE_DIR: join(directory, 'cache'), NODE_PATH: '', NODE_OPTIONS: '' } as Record<string, string>;
 delete env.EXPO_CANVAS_DEVELOPMENT_TEAM;
 const { tarball } = await packageCanvas();
 const prefix = join(directory, 'install');
 await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, timeout: 120_000 });
-const bin = join(prefix, 'bin/expo-canvas');
-const installed = join(prefix, 'lib/node_modules/expo-canvas');
+const bin = join(prefix, 'bin/mobile-canvas');
+const installed = join(prefix, 'lib/node_modules/mobile-canvas');
 await run('chmod', ['-R', 'a-w', installed]);
 const reports: unknown[] = [];
 console.log(`Installed immutable package: ${installed}`);
@@ -78,6 +78,9 @@ for (const app of selected) {
       await writeFile(image, Buffer.from(result.content[1].data, 'base64')); images.push(image);
     }
     session = await json('canvas_read');
+    const canvas = await call('canvas_studio_capture', { ...identity(session), hostId: state.hostId });
+    const canvasImage = join(directory, `${app.id}-canvas.png`);
+    await writeFile(canvasImage, Buffer.from(canvas.content[1].data, 'base64'));
     await json('canvas_studio_stop', identity(session));
     const warmStarted = Date.now();
     await json('canvas_studio_open', identity(session));
@@ -86,7 +89,7 @@ for (const app of selected) {
     session = await json('canvas_read');
     await json('canvas_studio_stop', identity(session));
     assert.equal((await run('git', ['-C', source, 'diff', 'HEAD'])).stdout, sourceBefore, 'Source files changed.');
-    reports.push({ app: app.id, revision: app.revision, coldReadyMs, reusedAttemptDirectory: reuse >= 0, warmReadyMs, images, project, sourceUnchanged: true });
+    reports.push({ app: app.id, revision: app.revision, coldReadyMs, reusedAttemptDirectory: reuse >= 0, warmReadyMs, images, canvasImage, project, sourceUnchanged: true });
     console.log(`${app.id}: ${images.length} native captures; cold ${(coldReadyMs / 1000).toFixed(1)}s, warm ${(warmReadyMs / 1000).toFixed(1)}s`);
   } finally { await client.close(); }
 }

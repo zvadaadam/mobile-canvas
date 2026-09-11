@@ -17,9 +17,9 @@ Replace the two absolute paths with this checkout and your project:
 ```json
 {
   "mcpServers": {
-    "expo-canvas": {
+    "mobile-canvas": {
       "command": "node",
-      "args": ["/absolute/expo-canvas/bin/expo-canvas.mjs", "mcp", "--project", "/absolute/expo-canvas/designs/native-studio"]
+      "args": ["/absolute/expo-canvas/bin/mobile-canvas.mjs", "mcp", "--project", "/absolute/expo-canvas/designs/native-studio"]
     }
   }
 }
@@ -74,8 +74,8 @@ Default dimensions are 402 × 874 points with no safe-area insets unless `insets
 ## Open the canvas, or one screen of it
 
 ```sh
-node bin/expo-canvas.mjs open --project designs/native-studio                # the whole flow, fitted
-node bin/expo-canvas.mjs open --project designs/native-studio --screen focus # one whole screen fitted and centered
+node bin/mobile-canvas.mjs open --project designs/native-studio                # the whole flow, fitted
+node bin/mobile-canvas.mjs open --project designs/native-studio --screen focus # one whole screen fitted and centered
 ```
 
 `open --screen <key>` (MCP `canvas_studio_open` with `screen: <id>`) is the URL of this tool: the canvas opens, or comes forward if it is already open, and fits and centers the whole frame as soon as it has laid out. A source change refreshes the mounted frames in place through Metro, so an agent that edits a screen and reopens it with `--screen` sees the result without clicking through the app. `studio zoom <scale> --key <screen>` does the same on an open canvas, and `studio focus <screen>` fits and centers the whole screen.
@@ -116,7 +116,7 @@ Use `notes` for each screen's purpose, fixture states, interactions, animation i
 
 ## Import an existing app
 
-`expo-canvas import --project designs/my-experiment --from /absolute/app --link` (MCP `canvas_import` with `link: true`) runs the app in place: `origin.mode` becomes `linked`, the app's `@/` alias points at its own source root, `lib/` starts empty, and the app's JavaScript-only packages resolve from its `node_modules` while native modules come from the host. To change an app file, write a project file and map it by app path in one batch:
+`mobile-canvas import --project designs/my-experiment --from /absolute/app --link` (MCP `canvas_import` with `link: true`) runs the app in place: `origin.mode` becomes `linked`, the app's `@/` alias points at its own source root, `lib/` starts empty, and the app's JavaScript-only packages resolve from its `node_modules` while native modules come from the host. To change an app file, write a project file and map it by app path in one batch:
 
 ```json
 { "type": "resolver.update", "modules": { "src/theme/colors.ts": "lib/theme/colors.ts" } }
@@ -142,10 +142,10 @@ A design direction is a scoped object the primitives read, not a global. Declare
 ## Verify
 
 ```sh
-node bin/expo-canvas.mjs studio status --project designs/native-studio
-node bin/expo-canvas.mjs studio zoom 1 --key focus --project designs/native-studio
-node bin/expo-canvas.mjs studio capture --project designs/native-studio
-node bin/expo-canvas.mjs doctor --project designs/native-studio
+node bin/mobile-canvas.mjs studio status --project designs/native-studio
+node bin/mobile-canvas.mjs studio zoom 1 --key focus --project designs/native-studio
+node bin/mobile-canvas.mjs studio capture --project designs/native-studio
+node bin/mobile-canvas.mjs doctor --project designs/native-studio
 ```
 
 The MCP path:

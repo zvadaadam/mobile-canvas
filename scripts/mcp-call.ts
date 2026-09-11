@@ -17,7 +17,7 @@ const client = new Client({ name: "expo-canvas-terminal", version: "1" });
 try {
   await client.connect(new StdioClientTransport({
     command: process.execPath,
-    args: [join(repository, "bin/expo-canvas.mjs"), "mcp", "--project", resolve(project)],
+    args: [join(repository, "bin/mobile-canvas.mjs"), "mcp", "--project", resolve(project)],
     stderr: "inherit",
   }));
   if (tool === "list") {

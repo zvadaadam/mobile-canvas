@@ -74,7 +74,7 @@ try {
     if (!hasBuild) {
       const environment = await inspectEnvironment({ project, app: manifest.document.origin.path, offline: manifest.document.appPreview.offline });
       const missing = environment.checks.filter(check => check.status === "missing");
-      if (missing.length) throw new Error(`Native setup is incomplete. ${missing.map(check => `${check.id}: ${check.detail} ${check.action}`).join(" ")} Run expo-canvas setup --app <app> for the full checklist.`);
+      if (missing.length) throw new Error(`Native setup is incomplete. ${missing.map(check => `${check.id}: ${check.detail} ${check.action}`).join(" ")} Run mobile-canvas setup --app <app> for the full checklist.`);
     }
     const current = await fetch(`${runtime}/api/session`).then(r=>r.json()) as Session;
     const matched = await adapter.prepare(current, preparation.signal);
@@ -83,7 +83,7 @@ try {
   }
   console.log(swift ? "Starting Swift native renderer…" : "Starting native renderer and Metro…");
   const build = JSON.parse(await readFile(join(output, "build.json"), "utf8").catch(error => {
-    if (error.code === "ENOENT") throw new Error("Build the authored-screen host first with expo-canvas build. Run expo-canvas setup to check prerequisites.");
+    if (error.code === "ENOENT") throw new Error("Build the authored-screen host first with mobile-canvas build. Run mobile-canvas setup to check prerequisites.");
     throw error;
   }));
   const launchApp = nativeAppPath(output);

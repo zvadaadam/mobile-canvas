@@ -61,31 +61,31 @@ const screenIn = (session: Session, reference: string | undefined): Screen => {
   return screen;
 };
 
-const help = `Expo Canvas — design real Expo screens on a native canvas
+const help = `Mobile Canvas — design real Expo screens on a native canvas
 
-  expo-canvas setup [--app <app>] [--offline] [--team <id>] [--install] [--json]
-  expo-canvas build [--team <id>] [--incremental]            # build the authored-screen host
-  expo-canvas open|mcp [--app <app>] [--project <separate-dir>] # automatic native Expo 56/57 route previews
+  mobile-canvas setup [--app <app>] [--offline] [--team <id>] [--install] [--json]
+  mobile-canvas build [--team <id>] [--incremental]            # build the authored-screen host
+  mobile-canvas open|mcp [--app <app>] [--project <separate-dir>] # automatic native Expo 56/57 route previews
     --offline                                            # design preview: disconnected services, no API keys
     --swift-preview MindIcon                            # add an app-authored component preview; repeat to select more
     --swift-context application|isolated                  # Swift: app initializer/services or independent previews (default)
-  expo-canvas map [--app <app>] [--project <separate-dir>]     # source-only route mapping, no execution
-  expo-canvas init --project <dir> --name <name>
-  expo-canvas import --project <dir> --from <app> [--link] [--map] [--name <name>] [--include a,b] [--exclude a,b] [--modules pkg,pkg]
-  expo-canvas open --project <dir> [--screen <key>] [--port <n>]   # the native canvas; --screen reveals one screen at 100%
-  expo-canvas serve --project <dir> [--port 4182]                  # the runtime alone, for CLI and MCP
-  expo-canvas read|selection|doctor|undo|redo|arrange --project <dir>
-  expo-canvas previews --project <dir>                     # Swift previews, animation evidence and local image assets
-  expo-canvas batch --project <dir> [--file command.json]          # otherwise stdin; see docs/agents.md
-  expo-canvas screen add --project <dir> --key <key> --name <name> [--file component.tsx | --source screens/existing.tsx]
-  expo-canvas source read <screens/file.tsx> --project <dir>
-  expo-canvas source write <screens/file.tsx> --file <tsx> --hash <sha256|null> --project <dir>
-  expo-canvas diff --project <dir> [--files lib/a.tsx,lib/b.ts]    # what the experiment changed versus the imported app
-  expo-canvas apply --project <dir> --files lib/a.tsx [--force]    # copy chosen files back into the imported app
-  expo-canvas studio open|status|capture|stop|fit --project <dir>
-  expo-canvas studio zoom <scale> [--key <screen>] --project <dir>
-  expo-canvas studio focus|reset <screen> --project <dir>
-  expo-canvas mcp --project <dir>
+  mobile-canvas map [--app <app>] [--project <separate-dir>]     # source-only route mapping, no execution
+  mobile-canvas init --project <dir> --name <name>
+  mobile-canvas import --project <dir> --from <app> [--link] [--map] [--name <name>] [--include a,b] [--exclude a,b] [--modules pkg,pkg]
+  mobile-canvas open --project <dir> [--screen <key>] [--port <n>]   # the native canvas; --screen reveals one screen at 100%
+  mobile-canvas serve --project <dir> [--port 4182]                  # the runtime alone, for CLI and MCP
+  mobile-canvas read|selection|doctor|undo|redo|arrange --project <dir>
+  mobile-canvas previews --project <dir>                     # Swift previews, animation evidence and local image assets
+  mobile-canvas batch --project <dir> [--file command.json]          # otherwise stdin; see docs/agents.md
+  mobile-canvas screen add --project <dir> --key <key> --name <name> [--file component.tsx | --source screens/existing.tsx]
+  mobile-canvas source read <screens/file.tsx> --project <dir>
+  mobile-canvas source write <screens/file.tsx> --file <tsx> --hash <sha256|null> --project <dir>
+  mobile-canvas diff --project <dir> [--files lib/a.tsx,lib/b.ts]    # what the experiment changed versus the imported app
+  mobile-canvas apply --project <dir> --files lib/a.tsx [--force]    # copy chosen files back into the imported app
+  mobile-canvas studio open|status|capture|stop|fit --project <dir>
+  mobile-canvas studio zoom <scale> [--key <screen>] --project <dir>
+  mobile-canvas studio focus|reset <screen> --project <dir>
+  mobile-canvas mcp --project <dir>
 
 Run setup, open, map or mcp from your Expo app root; no path flag is needed.
 Canvas project roots are also detected. Explicit --app / --project paths take precedence.
@@ -163,7 +163,7 @@ async function main() {
     if (existing) {
       if (app) await mapApp(new CanvasClient(existing));
       if (command === "open") await openNativeCanvas(new CanvasClient(existing), values.screen);
-      else console.error(`Expo Canvas: ${existing} (already running for this project)`);
+      else console.error(`Mobile Canvas: ${existing} (already running for this project)`);
       return;
     }
     const runtime = await startRuntime({ project, port: Number(values.port ?? (command === "open" ? 0 : 4182)) });
@@ -171,7 +171,7 @@ async function main() {
       try { await mapApp(new CanvasClient(runtime.url)); }
       catch (error) { await runtime.close(); throw error; }
     }
-    if (command === "serve") console.error(`Expo Canvas API: ${runtime.url}`);
+    if (command === "serve") console.error(`Mobile Canvas API: ${runtime.url}`);
     let closing = false;
     const close = async () => {
       if (closing) return;
@@ -323,12 +323,12 @@ async function main() {
     if (action === "focus" || action === "reset") return output(await control(action, { screenId: screenIn(session, argument).id }));
     throw new Error("Use studio open, status, capture, stop, fit, zoom, focus or reset.");
   }
-  throw new Error("Unknown command. Run expo-canvas --help.");
+  throw new Error("Unknown command. Run mobile-canvas --help.");
 }
 
 /** Opens the native canvas and waits until its mounted screens render; --screen reveals one at 100%. */
 async function openNativeCanvas(client: CanvasClient, screenKey?: string) {
-  console.error("Opening Expo Canvas…");
+  console.error("Opening Mobile Canvas…");
   const session = await client.read();
   const screen = screenKey ? screenIn(session, screenKey) : undefined;
   const opened = await client.request("/studio/open", { ...identityOf(session), ...(screen ? { screen: screen.id } : {}) });
@@ -343,7 +343,7 @@ async function openNativeCanvas(client: CanvasClient, screenKey?: string) {
     if (state.ready || state.phase === "degraded") {
       const mapped = !session.project.document.appPreview && Object.values(session.project.document.screens).every(entry => entry.props.route && entry.source === `screens/route-${entry.key}.tsx`);
       const noun = mapped ? "route card" : "running frame";
-      console.error(`Expo Canvas is open · ${state.readyCount} ${noun}${state.readyCount === 1 ? "" : "s"}${screen ? ` · showing ${screen.name}` : ""}${mapped ? " · no live app preview" : ""}${state.screenErrorCount ? ` · ${state.screenErrorCount} frame errors` : ""}.`);
+      console.error(`Mobile Canvas is open · ${state.readyCount} ${noun}${state.readyCount === 1 ? "" : "s"}${screen ? ` · showing ${screen.name}` : ""}${mapped ? " · no live app preview" : ""}${state.screenErrorCount ? ` · ${state.screenErrorCount} frame errors` : ""}.`);
       return;
     }
     if (state.phase === "stopped") throw new Error("The native canvas closed before it was ready.");

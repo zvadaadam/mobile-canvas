@@ -217,7 +217,7 @@ Capture should operate on the retained frame controller/window and its relevant 
 
 ## Commands, packaging and setup
 
-Keep the product's existing executable for this work. Proposed normal usage remains `expo-canvas setup` and `expo-canvas open` from the app root. Automatic detection finds Expo or supported Xcode/SwiftPM candidates; a persisted explicit project/scheme choice resolves ambiguity. Finding an `ios/` directory in an Expo app must not automatically switch it to the standalone Swift adapter. Do not recursively choose an arbitrary Xcode target from a monorepo.
+Keep the product's existing executable for this work. Proposed normal usage remains `mobile-canvas setup` and `mobile-canvas open` from the app root. Automatic detection finds Expo or supported Xcode/SwiftPM candidates; a persisted explicit project/scheme choice resolves ambiguity. Finding an `ios/` directory in an Expo app must not automatically switch it to the standalone Swift adapter. Do not recursively choose an arbitrary Xcode target from a monorepo.
 
 The same npm distribution can carry the Node runtime, Swift shell source/templates and a pinned analyzer helper. Node is a tool prerequisite, not an app dependency. Install does not need to compile the imported app. Build caches and generated projects remain outside the immutable npm package.
 

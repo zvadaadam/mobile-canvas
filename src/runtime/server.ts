@@ -106,7 +106,7 @@ export async function startRuntime(options: RuntimeOptions) {
       if (request.method === "GET") {
         if (path === "/api/session") return json(response, 200, store.session());
         if (path === "/api/tools")
-          return json(response, 200, { command: process.execPath, args: [join(repository, "bin/expo-canvas.mjs"), "mcp", "--project", directory] });
+          return json(response, 200, { command: process.execPath, args: [join(repository, "bin/mobile-canvas.mjs"), "mcp", "--project", directory] });
         if (path === "/api/source") return json(response, 200, await store.readSource(url.searchParams.get("path") ?? ""));
         if (path === "/api/route-source") return json(response, 200, await store.readRouteSource(url.searchParams.get("screenId") ?? ""));
         if (path === "/api/events") {
@@ -158,7 +158,7 @@ export async function startRuntime(options: RuntimeOptions) {
         }
       }
       if (path.startsWith("/api/")) throw new CanvasError("not_found", "Unknown canvas operation", 404);
-      throw new CanvasError("native_canvas", "Expo Canvas opens in its native app. This loopback endpoint serves the CLI, the MCP server and the canvas.", 404);
+      throw new CanvasError("native_canvas", "Mobile Canvas opens in its native app. This loopback endpoint serves the CLI, the MCP server and the canvas.", 404);
     } catch (error) {
       json(response, error instanceof CanvasError ? error.status : 400, errorBody(error));
     }

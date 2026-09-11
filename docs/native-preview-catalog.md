@@ -7,16 +7,16 @@ The native canvas can show an app's screen flow and selected component previews 
 From the Canvas checkout, first map/open a Swift app in a separate experiment. Original source stays read-only:
 
 ```sh
-node bin/expo-canvas.mjs open --app /path/to/swift-app --project /path/to/canvas
-node bin/expo-canvas.mjs previews --project /path/to/canvas
+node bin/mobile-canvas.mjs open --app /path/to/swift-app --project /path/to/canvas
+node bin/mobile-canvas.mjs previews --project /path/to/canvas
 ```
 
 `previews` is read-only. It inventories existing preview labels/factory IDs, animation source evidence and the target's bundled image assets. It does not run the app. Use a unique label or exact factory ID to add a component:
 
 ```sh
-node bin/expo-canvas.mjs import --from /path/to/swift-app --project /path/to/canvas \
+node bin/mobile-canvas.mjs import --from /path/to/swift-app --project /path/to/canvas \
   --link --map --swift-preview MindIcon --swift-preview RemoteImage
-node bin/expo-canvas.mjs open --project /path/to/canvas --screen mindicon-component
+node bin/mobile-canvas.mjs open --project /path/to/canvas --screen mindicon-component
 ```
 
 You can also add a selection while reopening an existing experiment with `open --project /path/to/canvas --swift-preview MindIcon`. Both `--project` and `--app` honor explicit selections on an already populated map.
