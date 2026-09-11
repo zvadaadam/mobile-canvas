@@ -42,6 +42,7 @@ try {
   await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, timeout: 120_000 });
   const bin = join(prefix, 'bin/mobile-canvas');
   assert.match((await run(bin, ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
+  assert.match((await run(join(prefix, 'bin/expo-canvas'), ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
   const nodeOnly = join(directory, 'node-only');
   await mkdir(nodeOnly); await symlink(process.execPath, join(nodeOnly, 'node'));
   const setupEnv = { ...process.env, PATH: nodeOnly, EXPO_CANVAS_DATA_DIR: join(directory, 'settings'), EXPO_CANVAS_CACHE_DIR: join(directory, 'cache') };
@@ -67,6 +68,7 @@ try {
   await run(bin, ['init', '--project', project, '--name', 'Installed package test'], { cwd: directory });
   // MCP owns its temporary runtime, so closing this client leaves no detached process.
   await client.connect(new StdioClientTransport({ command: bin, args: ['mcp'], cwd: project, stderr: 'inherit', env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } as Record<string, string> }));
+  assert.equal(client.getServerVersion()?.name, 'mobile-canvas');
   const list = await client.listTools();
   assert.ok(list.tools.some(tool => tool.name === 'canvas_environment'));
   const read: any = await client.callTool({ name: 'canvas_read', arguments: {} });
