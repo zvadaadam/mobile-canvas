@@ -10,6 +10,23 @@ import { packageCanvas } from './package';
 import { repository } from '../src/runtime/paths';
 const run = promisify(execFile);
 const directory = await realpath(await mkdtemp(join(tmpdir(), 'canvas-package-')));
+const userConfig = join(directory, 'npm-user-config');
+const globalConfig = join(directory, 'npm-global-config');
+await writeFile(userConfig, '');
+await writeFile(globalConfig, '');
+// Installation must not depend on the maintainer's registry credentials,
+// cached dependencies, saved signing team or Node loader configuration.
+const isolatedEnv = {
+  PATH: process.env.PATH ?? '',
+  TMPDIR: directory,
+  npm_config_userconfig: userConfig,
+  npm_config_globalconfig: globalConfig,
+  npm_config_cache: join(directory, 'npm-cache'),
+  npm_config_registry: 'https://registry.npmjs.org/',
+  EXPO_CANVAS_DATA_DIR: join(directory, 'settings'),
+  EXPO_CANVAS_CACHE_DIR: join(directory, 'cache'),
+  NODE_PATH: '', NODE_OPTIONS: '',
+};
 const { manifest, tarball } = await packageCanvas();
 const files = manifest.files.map((file: { path: string }) => file.path) as string[];
 for (const file of files) assert.ok(!/(^|\/)(\.context|\.conductor|node_modules|ios|build|designs|\.env[^/]*|\.npmrc)(\/|$)|\.(p12|mobileprovision)$/.test(file), `private/build material included: ${file}`);
@@ -39,13 +56,15 @@ const client = new Client({ name: 'installed-package-test', version: '1' });
 try {
   const prefix = join(directory, 'install');
   console.log('Installing the tarball with production dependencies in an isolated prefix…');
-  await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, timeout: 120_000 });
+  await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, env: isolatedEnv, timeout: 120_000 });
   const bin = join(prefix, 'bin/mobile-canvas');
-  assert.match((await run(bin, ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
-  assert.match((await run(join(prefix, 'bin/expo-canvas'), ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
+  assert.match((await run(bin, ['--help'], { cwd: directory, env: isolatedEnv })).stdout, /Mobile Canvas/);
+  assert.match((await run(join(prefix, 'bin/expo-canvas'), ['--help'], { cwd: directory, env: isolatedEnv })).stdout, /Mobile Canvas/);
   const nodeOnly = join(directory, 'node-only');
   await mkdir(nodeOnly); await symlink(process.execPath, join(nodeOnly, 'node'));
-  const setupEnv = { ...process.env, PATH: nodeOnly, EXPO_CANVAS_DATA_DIR: join(directory, 'settings'), EXPO_CANVAS_CACHE_DIR: join(directory, 'cache') };
+  const setupEnv = { ...isolatedEnv, PATH: nodeOnly };
+  const fresh = await run(bin, ['setup', '--json'], { cwd: directory, env: setupEnv }).then(result => result.stdout, error => error.stdout);
+  assert.equal(JSON.parse(fresh).checks.find((check: any) => check.id === 'signing-team').status, 'missing', 'A fresh installation must not inherit the maintainer signing team');
   const missing = await run(bin, ['setup', '--team', 'ABCDEFGHIJ'], { cwd: directory, env: setupEnv }).then(() => { throw new Error('Missing tools must fail setup'); }, error => error);
   assert.equal(missing.code, 1);
   assert.match(missing.stdout, /Full Xcode is unavailable/);
@@ -53,6 +72,11 @@ try {
   assert.equal(JSON.parse(await readFile(join(directory, 'settings/settings.json'), 'utf8')).team, 'ABCDEFGHIJ');
 
   const installed = join(prefix, 'lib/node_modules/mobile-canvas');
+  for (const file of files) {
+    const bytes = await readFile(join(installed, file));
+    assert.ok(!bytes.includes(Buffer.from(repository)), `checkout path embedded in ${file}`);
+    assert.ok(!/\/Users\/[^/\s]+|\/private\/var\/folders\//.test(bytes.toString('latin1')), `personal Mac path embedded in ${file}`);
+  }
   assert.equal(await readFile(join(installed, 'apps/native-host/dependencies.lock'), 'utf8'), await readFile(join(repository, 'apps/native-host/package-lock.json'), 'utf8'), 'Packed host dependencies must match the canonical lock');
   const installedManifest = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
   assert.equal(installedManifest.license, 'MIT');
@@ -65,9 +89,9 @@ try {
   await writeFile(join(app, 'app/detail.tsx'), 'export default function Detail(){return null}');
   const rootSetup = await run(bin, ['setup', '--json'], { cwd: app, env: setupEnv }).then(result => result.stdout, error => error.stdout);
   assert.ok(JSON.parse(rootSetup).checks.some((check: any) => check.id === 'app-sdk'), 'setup must detect the current Expo root');
-  await run(bin, ['init', '--project', project, '--name', 'Installed package test'], { cwd: directory });
+  await run(bin, ['init', '--project', project, '--name', 'Installed package test'], { cwd: directory, env: isolatedEnv });
   // MCP owns its temporary runtime, so closing this client leaves no detached process.
-  await client.connect(new StdioClientTransport({ command: bin, args: ['mcp'], cwd: project, stderr: 'inherit', env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } as Record<string, string> }));
+  await client.connect(new StdioClientTransport({ command: bin, args: ['mcp'], cwd: project, stderr: 'inherit', env: isolatedEnv }));
   assert.equal(client.getServerVersion()?.name, 'mobile-canvas');
   const list = await client.listTools();
   assert.ok(list.tools.some(tool => tool.name === 'canvas_environment'));
