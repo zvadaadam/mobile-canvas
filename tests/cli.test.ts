@@ -41,7 +41,7 @@ struct AnimatedIcon: View { var body: some View { Text("Icon") } }
     t.after(async () => { await mcp.close(); await runtime.close(); });
     await mcp.connect(new StdioClientTransport({
       command: process.execPath,
-      args: [join(repository, 'bin/expo-canvas.mjs'), 'mcp', '--project', project,
+      args: [join(repository, 'bin/mobile-canvas.mjs'), 'mcp', '--project', project,
         ...(mode === 'app' ? ['--app', app] : []), '--swift-preview', 'Animated icon'],
       stderr: 'pipe',
     }));
@@ -69,7 +69,7 @@ test('CLI rejects Swift import options on existing Expo projects', async t => {
   for (const option of [['--swift-preview', 'Icon'], ['--swift-context', 'isolated']]) {
     for (const paths of [[], ['--app', app]]) {
       await assert.rejects(promisify(execFile)(process.execPath, [
-        join(repository, 'bin/expo-canvas.mjs'), 'mcp', '--project', project, ...paths, ...option,
+        join(repository, 'bin/mobile-canvas.mjs'), 'mcp', '--project', project, ...paths, ...option,
       ], { timeout: 15_000 }), /require a Swift project/);
     }
   }

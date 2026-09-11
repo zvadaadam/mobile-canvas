@@ -1,10 +1,11 @@
 {
-  "name": "expo-canvas",
+  "name": "mobile-canvas",
   "version": "0.1.0",
-  "description": "A local canvas for designing real Expo interfaces with AI agents.",
+  "description": "A native Mac canvas for real Expo interfaces and experimental Swift previews.",
   "type": "module",
   "bin": {
-    "expo-canvas": "bin/expo-canvas.mjs"
+    "mobile-canvas": "bin/mobile-canvas.mjs",
+    "expo-canvas": "bin/mobile-canvas.mjs"
   },
   "engines": {
     "node": ">=22.14"
@@ -62,11 +63,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zvadaadam/expo-canvas.git"
+    "url": "git+https://github.com/zvadaadam/mobile-canvas.git"
   },
-  "homepage": "https://github.com/zvadaadam/expo-canvas#readme",
+  "homepage": "https://github.com/zvadaadam/mobile-canvas#readme",
   "bugs": {
-    "url": "https://github.com/zvadaadam/expo-canvas/issues"
+    "url": "https://github.com/zvadaadam/mobile-canvas/issues"
   },
   "publishConfig": {
     "access": "public"

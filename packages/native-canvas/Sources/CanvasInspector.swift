@@ -418,7 +418,7 @@ final class CanvasInspector: UIView, UITextViewDelegate {
     intro.font = Fonts.regular(13)
     intro.textColor = Palette.ink
     auxiliary.addArrangedSubview(intro)
-    let data = try? JSONSerialization.data(withJSONObject: ["mcpServers": ["expo-canvas": config]], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    let data = try? JSONSerialization.data(withJSONObject: ["mcpServers": ["mobile-canvas": config]], options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
     let args = config["args"] as? [String] ?? []
     let quote: (String) -> String = { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }

@@ -16,7 +16,7 @@ Implementation at the start of this investigation (historical):
 
 | Part | Location / behavior | Packaging implication |
 | --- | --- | --- |
-| Node runtime and CLI/MCP | `src/runtime`, `bin/expo-canvas.mjs`; tsx loads TypeScript | Recipient needs compatible Node today; tsx and TypeScript must remain production dependencies unless the runtime is compiled differently. |
+| Node runtime and CLI/MCP | `src/runtime`, `bin/mobile-canvas.mjs`; tsx loads TypeScript | Recipient needs compatible Node today; tsx and TypeScript must remain production dependencies unless the runtime is compiled differently. |
 | Experiment document and source overrides | `~/.expo-canvas/apps/<app-path-hash>` by default, or explicit project path | Durable user work; never treat as disposable build cache. |
 | Matched native host | `<project>/.expo-canvas/native-host` | Installs the app's dependencies and contains generated native build inputs. |
 | Signed iOS renderer | `<project>/.expo-canvas/native-build` | Built locally with Xcode, development signing and the app's native modules. |
@@ -77,7 +77,7 @@ A Homebrew entry would change installation convenience, not native capability. B
 
 Implemented for the developer tarball; see [current distribution instructions](distribution.md). The original acceptance scope below also includes future upgrade testing.
 
-Introduce explicit paths for immutable installation assets, durable projects, caches and logs. Keep existing user projects where they are; do not migrate them silently. A sensible Mac layout is durable settings under `~/Library/Application Support/Expo Canvas`, disposable generated builds under `~/Library/Caches/Expo Canvas`, and diagnostic logs under `~/Library/Logs/Expo Canvas`. These are proposed paths, not implemented changes.
+Introduce explicit paths for immutable installation assets, durable projects, caches and logs. Keep existing user projects where they are; do not migrate them silently. A sensible Mac layout is durable settings under `~/Library/Application Support/Expo Canvas`, disposable generated builds under `~/Library/Caches/Expo Canvas`, and diagnostic logs under `~/Library/Logs/Mobile Canvas`. These are proposed paths, not implemented changes.
 
 Update `paths.ts`, SDK 54 build/launch paths and the capture fallback. Carry settings across package upgrades without storing signing configuration in npm's installation/cache directory. Support multiple installed runtime versions and existing sessions; updates must not delete code used by running hosts.
 

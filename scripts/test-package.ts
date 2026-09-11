@@ -17,7 +17,7 @@ const requiredInputs = [
   'LICENSE',
   'THIRD_PARTY_NOTICES.md',
   'scripts/prepare-package.ts',
-  'bin/expo-canvas.mjs',
+  'bin/mobile-canvas.mjs',
   'src/runtime/cli.ts',
   'src/runtime/host/build.ts',
   'src/runtime/adapters/expo/frames.ts',
@@ -40,8 +40,9 @@ try {
   const prefix = join(directory, 'install');
   console.log('Installing the tarball with production dependencies in an isolated prefix…');
   await run('npm', ['install', '--global', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', tarball], { cwd: directory, timeout: 120_000 });
-  const bin = join(prefix, 'bin/expo-canvas');
-  assert.match((await run(bin, ['--help'], { cwd: directory })).stdout, /Expo Canvas/);
+  const bin = join(prefix, 'bin/mobile-canvas');
+  assert.match((await run(bin, ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
+  assert.match((await run(join(prefix, 'bin/expo-canvas'), ['--help'], { cwd: directory })).stdout, /Mobile Canvas/);
   const nodeOnly = join(directory, 'node-only');
   await mkdir(nodeOnly); await symlink(process.execPath, join(nodeOnly, 'node'));
   const setupEnv = { ...process.env, PATH: nodeOnly, EXPO_CANVAS_DATA_DIR: join(directory, 'settings'), EXPO_CANVAS_CACHE_DIR: join(directory, 'cache') };
@@ -51,7 +52,7 @@ try {
   assert.match(missing.stdout, /CocoaPods is not available/);
   assert.equal(JSON.parse(await readFile(join(directory, 'settings/settings.json'), 'utf8')).team, 'ABCDEFGHIJ');
 
-  const installed = join(prefix, 'lib/node_modules/expo-canvas');
+  const installed = join(prefix, 'lib/node_modules/mobile-canvas');
   assert.equal(await readFile(join(installed, 'apps/native-host/dependencies.lock'), 'utf8'), await readFile(join(repository, 'apps/native-host/package-lock.json'), 'utf8'), 'Packed host dependencies must match the canonical lock');
   const installedManifest = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
   assert.equal(installedManifest.license, 'MIT');
@@ -67,6 +68,7 @@ try {
   await run(bin, ['init', '--project', project, '--name', 'Installed package test'], { cwd: directory });
   // MCP owns its temporary runtime, so closing this client leaves no detached process.
   await client.connect(new StdioClientTransport({ command: bin, args: ['mcp'], cwd: project, stderr: 'inherit', env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } as Record<string, string> }));
+  assert.equal(client.getServerVersion()?.name, 'mobile-canvas');
   const list = await client.listTools();
   assert.ok(list.tools.some(tool => tool.name === 'canvas_environment'));
   const read: any = await client.callTool({ name: 'canvas_read', arguments: {} });
@@ -80,7 +82,7 @@ try {
   const environment: any = await client.callTool({ name: 'canvas_environment', arguments: {} });
   assert.ok(!environment.isError, JSON.stringify(environment));
   assert.ok(JSON.parse(environment.content[0].text).checks.some((check: any) => check.id === 'xcode'));
-  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'installed expo-canvas --help', 'actual installed MCP handshake and tool list', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
+  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'installed mobile-canvas --help', 'actual installed MCP handshake and tool list', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
   await writeFile(join(repository, '.context/distribution/package-test.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally { await client.close(); await rm(directory, { recursive: true, force: true }); }

@@ -2,7 +2,7 @@ const { getDefaultConfig } = require('expo/metro-config');
 const fs = require('node:fs');
 const path = require('node:path');
 const project = process.env.EXPO_CANVAS_PROJECT;
-if (!project) throw new Error('Open an explicit project with expo-canvas studio open --project <directory>.');
+if (!project) throw new Error('Open an explicit project with mobile-canvas studio open --project <directory>.');
 const root = process.env.EXPO_CANVAS_INSTALLATION || path.resolve(__dirname, '../..');
 const rootModules = path.join(root, 'node_modules') + path.sep;
 const projectModules = path.join(project, 'node_modules');
@@ -72,7 +72,7 @@ config.resolver.resolveRequest = (context, name, platform) => {
   // substituting file itself reaches the real package by its bare name. Metro caches resolutions per origin
   // directory, so such a shim must live alone in its directory (or use a subpath).
   if (substitute && (inProject || inLinkedApp) && context.originModulePath !== substitute) {
-    if (!fs.existsSync(substitute)) throw new Error(`Expo Canvas: expo-canvas.json maps "${name}" to a missing project file: ${path.relative(project, substitute)}`);
+    if (!fs.existsSync(substitute)) throw new Error(`Mobile Canvas: expo-canvas.json maps "${name}" to a missing project file: ${path.relative(project, substitute)}`);
     return { type: 'sourceFile', filePath: substitute };
   }
   for (const [prefix, directory] of aliases) {
@@ -94,9 +94,9 @@ config.resolver.resolveRequest = (context, name, platform) => {
   }
   const result = context.resolveRequest(requestContext, name, platform);
   if (result.type === 'sourceFile' && result.filePath.startsWith(rootModules))
-    throw new Error(`Expo Canvas: "${name}" is not installed in the native host. Add it to apps/native-host (native modules), copy a JavaScript-only package into this project's node_modules, or map it to a project shim in expo-canvas.json resolver.modules.`);
+    throw new Error(`Mobile Canvas: "${name}" is not installed in the native host. Add it to apps/native-host (native modules), copy a JavaScript-only package into this project's node_modules, or map it to a project shim in expo-canvas.json resolver.modules.`);
   if (appModules && result.type === 'sourceFile' && result.filePath.startsWith(appModules + path.sep) && !jsOnly(packageDirectory(appModules, result.filePath)))
-    throw new Error(`Expo Canvas: "${name}" resolved into the linked app's native package ${path.relative(appModules, packageDirectory(appModules, result.filePath))}; native modules must come from the host. Add it to apps/native-host or map a shim in expo-canvas.json resolver.modules.`);
+    throw new Error(`Mobile Canvas: "${name}" resolved into the linked app's native package ${path.relative(appModules, packageDirectory(appModules, result.filePath))}; native modules must come from the host. Add it to apps/native-host or map a shim in expo-canvas.json resolver.modules.`);
   return result;
 };
 module.exports = config;

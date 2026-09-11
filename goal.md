@@ -1,4 +1,4 @@
-# Expo Canvas
+# Mobile Canvas
 
 Build a Figma-like workspace whose mobile screens are running Expo code.
 
@@ -35,4 +35,4 @@ Support Android, expose a richer inspection/accessibility surface, package the l
 
 ## Outside the product
 
-AI image/video generation, media Workers, hosted editing, accounts, full app business logic, a generic vector editor, and an in-app agent chat. AI agents bring their own reasoning and code-writing tools; Expo Canvas provides a reliable design environment.
+AI image/video generation, media Workers, hosted editing, accounts, full app business logic, a generic vector editor, and an in-app agent chat. AI agents bring their own reasoning and code-writing tools; Mobile Canvas provides a reliable design environment.

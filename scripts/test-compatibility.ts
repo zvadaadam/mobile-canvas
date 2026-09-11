@@ -70,7 +70,7 @@ for (const app of apps) {
    // Opening/building remains explicit via the regular product command.
    const client = new Client({ name: 'compatibility-suite', version: '1' });
    try {
-    await client.connect(new StdioClientTransport({ command: process.execPath, args: [resolve('bin/expo-canvas.mjs'), 'mcp', '--project', resolve(app.nativeProject)], stderr: 'inherit' }));
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [resolve('bin/mobile-canvas.mjs'), 'mcp', '--project', resolve(app.nativeProject)], stderr: 'inherit' }));
     const call = async (name: string, args: any = {}) => { const result: any = await client.callTool({ name, arguments: args }, undefined, { timeout: 120_000 }); assert.ok(!result.isError, JSON.stringify(result)); return result; };
     const json = async (name: string) => JSON.parse((await call(name)).content[0].text);
     const session = await json('canvas_read'); const state = await json('canvas_studio_state');

@@ -56,9 +56,9 @@ Use an Apple-silicon Mac, compatible Xcode and development signing. Follow [Mac 
 
 ```sh
 npm ci --prefix apps/native-host
-node bin/expo-canvas.mjs setup
+node bin/mobile-canvas.mjs setup
 npm run studio:build
-node bin/expo-canvas.mjs open --project designs/native-studio
+node bin/mobile-canvas.mjs open --project designs/native-studio
 ```
 
 Shared canvas source is in `packages/native-canvas`; Expo-specific native code is in `apps/native-host/native/ExpoRenderer.swift`. `studio:build -- --incremental` stages current sources and assets before recompiling an existing target. Native dependency/plugin changes require a full build. Stop and reopen the relevant canvas after rebuilding. Swift projects compile their own generated target on explicit open.

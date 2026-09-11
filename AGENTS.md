@@ -1,4 +1,4 @@
-# Expo Canvas
+# Mobile Canvas
 
 Read `goal.md` and `docs/architecture.md` before changing the product model.
 
@@ -23,7 +23,7 @@ Read `goal.md` and `docs/architecture.md` before changing the product model.
 
 ## Look
 
-- The canvas follows Expo's light interface: the official wordmark and bundled Inter Medium, neutral surfaces with hairline borders, a black primary pill, blue only for selection and focus. Frame names sit above the frames and stay readable at every zoom; borders stay one screen pixel. Keep authored mobile app styling independent of the canvas chrome. See `docs/design-system.md`.
+- The canvas follows Expo's light interface: the Mobile Canvas text wordmark and bundled Inter Medium, neutral surfaces with hairline borders, a black primary pill, blue only for selection and focus. Frame names sit above the frames and stay readable at every zoom; borders stay one screen pixel. Keep authored mobile app styling independent of the canvas chrome. See `docs/design-system.md`.
 
 ## Compatibility regression
 

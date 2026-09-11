@@ -80,7 +80,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private var entries: [String: [String: Any]] { session.entries }
   private var workspaceId: String { session.state.workspaceId }
   private var sequence: Int { session.state.sequence }
-  private var documentName = "Expo Canvas"
+  private var documentName = "Mobile Canvas"
   private var selectedId: String? { session.state.selectedId }
   private var fitted = false
   private var dragging = false
@@ -188,7 +188,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     contextLabel.lineBreakMode = .byTruncatingTail
     statusBar.addSubview(contextLabel)
     view.addSubview(statusBar)
-    setStatus(runtime == nil ? "Open a project with expo-canvas open --project <directory>." : "Connecting to your project…", runtime == nil ? .idle : .busy)
+    setStatus(runtime == nil ? "Open a project with mobile-canvas open --project <directory>." : "Connecting to your project…", runtime == nil ? .idle : .busy)
     navigator.onSelect = { [weak self] id in self?.select(id, reveal: true) }
     view.addSubview(navigator)
     inspector.isHidden = !inspectorVisible
@@ -230,12 +230,11 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private func buildToolbar() {
     toolbar.backgroundColor = Palette.surface
     toolbar.addSubview(toolbarLine)
-    let logo = UIImageView(image: UIImage(named: "ExpoWordmark"))
-    logo.contentMode = .scaleAspectFit
-    logo.widthAnchor.constraint(equalToConstant: 74).isActive = true
-    logo.heightAnchor.constraint(equalToConstant: 21).isActive = true
-    logo.isAccessibilityElement = true
-    logo.accessibilityLabel = "Expo"
+    let logo = UILabel()
+    logo.text = "Mobile Canvas"
+    logo.font = Fonts.medium(15)
+    logo.textColor = Palette.ink
+    logo.setContentCompressionResistancePriority(.required, for: .horizontal)
     let divider = UIView()
     divider.backgroundColor = Palette.hairline
     divider.widthAnchor.constraint(equalToConstant: 1).isActive = true

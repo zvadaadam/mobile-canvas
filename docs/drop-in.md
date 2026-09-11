@@ -5,7 +5,7 @@ Historical workout captures below refer to the former curated export, which has 
 `open --app` and `mcp --app` discover Expo Router screens deterministically and prepare a separate linked experiment. Opening the canvas renders the app's actual source, providers, native stacks, tabs and controls. No agent needs to write screen wrappers, mock databases or app-specific `lib/` shims. The implementation supports Expo SDK 56 and 57 apps with installed dependencies; the authored Expo 54 host remains available for existing projects.
 
 ```sh
-node /absolute/expo-canvas/bin/expo-canvas.mjs open --app /absolute/app --screen today
+node /absolute/expo-canvas/bin/mobile-canvas.mjs open --app /absolute/app --screen today
 ```
 
 The experiment defaults to `~/.expo-canvas/apps/<hash-of-canonical-app-path>`. Use `--project /separate/experiment` to choose another location. The source app stays in place and is never modified. Import and MCP startup only inspect source and generate project files; `open` or `canvas_studio_open` explicitly starts native execution.
@@ -33,7 +33,7 @@ The preview transform observes concrete hrefs as app UI renders. The runtime sor
   "mcpServers": {
     "expo-canvas": {
       "command": "node",
-      "args": ["/absolute/expo-canvas/bin/expo-canvas.mjs", "mcp", "--app", "/absolute/app"]
+      "args": ["/absolute/expo-canvas/bin/mobile-canvas.mjs", "mcp", "--app", "/absolute/app"]
     }
   }
 }
@@ -88,7 +88,7 @@ The shared-context interaction was also verified: Locations → À La Mode updat
 ### Design preview without service credentials
 
 ```sh
-node bin/expo-canvas.mjs open --app /absolute/app --offline
+node bin/mobile-canvas.mjs open --app /absolute/app --offline
 ```
 
 The explicit `--offline` option (also on `mcp --app`, or `canvas_import` with `preview: true, offline: true`) saves a separate design environment. The app's original components, layouts, bundled data and native controls still run. Supported Clerk authentication settles signed out, Convex queries remain disconnected, and RevenueCat exposes no active entitlements or offerings. Auth actions, backend writes and purchases fail explicitly. RevenueCat-owned subscription UI has an unavailable-service placeholder. Observe telemetry is disconnected. Missing Hugeicons Pro packs use the public stroke icon package; filled Pro styling differs. These are reusable host integrations, with no writes to the app and no app-specific fixtures.
@@ -120,7 +120,7 @@ The failed launch exposed an incorrect generic “build the native host first”
 After dependencies and local development configuration are available, continue with:
 
 ```sh
-node bin/expo-canvas.mjs open --app .context/clarity-source --project .context/clarity-dropin
+node bin/mobile-canvas.mjs open --app .context/clarity-source --project .context/clarity-dropin
 ```
 
 ### Multi-step routes and coverage follow-up

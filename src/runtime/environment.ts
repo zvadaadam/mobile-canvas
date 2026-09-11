@@ -59,7 +59,7 @@ export async function inspectEnvironment(options: { app?: string; project?: stri
   const hasIdentity = /"Apple Development:|"iPhone Developer:/.test(results[3] ?? '');
   checks.push({ id: 'signing-identity', status: hasIdentity ? 'ready' : 'manual', detail: hasIdentity ? 'A development signing identity is available.' : 'No available development signing identity was found.', ...(!hasIdentity ? { action: 'Add your Apple account in Xcode Settings → Accounts and configure development signing. Xcode may create the identity during the first build.' } : {}) });
   const team = system.team ?? await signingTeam(options.project);
-  add('signing-team', !!team && /^[A-Z0-9]{10}$/.test(team), team ? (/^[A-Z0-9]{10}$/.test(team) ? 'Development team configured.' : 'Development team format is invalid.') : 'No development team configured.', 'Run expo-canvas setup --team YOURTEAMID to save your Apple team ID, or set EXPO_CANVAS_DEVELOPMENT_TEAM. Your credentials stay in Xcode.');
+  add('signing-team', !!team && /^[A-Z0-9]{10}$/.test(team), team ? (/^[A-Z0-9]{10}$/.test(team) ? 'Development team configured.' : 'Development team format is invalid.') : 'No development team configured.', 'Run mobile-canvas setup --team YOURTEAMID to save your Apple team ID, or set EXPO_CANVAS_DEVELOPMENT_TEAM. Your credentials stay in Xcode.');
   if (app) {
     add('app-sdk', sdk === 56 || sdk === 57, app.installedExpo ? `Installed Expo ${app.installedExpo}` : 'Expo is not installed in the app.', 'Automatic linked native previews currently support Expo 56 and 57. Install the app dependencies; other SDKs can still use source-only mapping.');
     const missing = app.missing.filter(name => !options.offline || ![...excluded, ...iconPackages].includes(name));

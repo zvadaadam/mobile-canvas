@@ -1,10 +1,10 @@
 # Canvas design system
 
-Expo Canvas follows the current Expo website and dashboard: a light, neutral interface with hairline borders, the official wordmark, Inter for labels, a black primary action and blue reserved for selection. The canvas is a design tool; the interfaces authored inside its frames keep their own app styling and never inherit the canvas palette.
+Mobile Canvas follows the current Expo website and dashboard: a light, neutral interface with hairline borders, the Mobile Canvas text wordmark, Inter for labels, a black primary action and blue reserved for selection. The canvas is a design tool; the interfaces authored inside its frames keep their own app styling and never inherit the canvas palette.
 
 ## Sources
 
-The reference is `expo.dev`, captured on September 8, 2026, and Universe's `server/website` at the supplied worktree. The wordmark is Expo's exact SVG geometry as an Xcode vector asset, and Inter Medium is the reference site's `Inter-Medium.ttf` as a bundled font asset; Expo's MIT notice and Inter's OFL notice accompany them under `packages/native-canvas/Resources`. System UI text uses SF; code and paths use SF Mono.
+The reference is `expo.dev`, captured on September 8, 2026, and Universe's `server/website` at the supplied worktree. The current header uses a Mobile Canvas text wordmark in bundled Inter Medium. The earlier Expo SVG asset remains in `packages/native-canvas/Resources` with its MIT notice; Inter's OFL notice also accompanies the font there. System UI text uses SF; code and paths use SF Mono.
 
 ## Tokens
 
@@ -39,7 +39,7 @@ Type: Inter Medium 14 for the project name, 13 for pill labels, 12 for frame nam
 
 ## Rules
 
-- Use the official wordmark without redrawing, tinting or distorting it.
+- Set the Mobile Canvas text wordmark in Inter Medium with the neutral ink color.
 - Default to the light interface; the window overrides to light so app frames are judged consistently.
 - Blue means selection, focus and informational feedback only. Primary actions are black on white; everything else is neutral.
 - Pill-shaped actions, 8 pt grouped controls, 6 pt fields, hairline separators and restrained shadows. Outer frames stay square: they are iPhone screens, not cards.
