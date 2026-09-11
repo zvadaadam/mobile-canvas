@@ -3,7 +3,7 @@ import { isCanvasOnly } from "./origin";
 import { createRequire } from "node:module";
 import { repository } from "./paths";
 import { join } from "node:path";
-import { appDependencies, dependencyIssue } from "./app-dependencies";
+import { appDependencies, dependencyIssue } from "./adapters/expo/app-dependencies";
 const { excluded, iconPackages } = createRequire(import.meta.url)(join(repository, "apps/linked-host/design/environment.cjs")) as { excluded: string[]; iconPackages: string[] };
 
 /** A read-only health report: broken references, host state and, for imported apps, what the experiment changed. */

@@ -2,13 +2,14 @@ import {writeXcodeProject} from './standalone';
 import {writeDerivedXcodeProject, readAppInfo} from './xcode-build';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, readFile, writeFile, cp, symlink, rm, access } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, cp, symlink, rm, access, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { repository } from '../../paths';
 import { nativeAppPath, signingTeam } from '../../installation';
 import { swiftInputFiles } from './project';
 import {compileSwiftPreviews} from './compile';
+import {nativeCanvas, nativeResourceFingerprint} from '../../host/canvas-template';
 import type { Session } from '../../../shared/model';
 const exec = promisify(execFile);
 async function writeChanged(path:string,bytes:string|Buffer) {
@@ -27,13 +28,14 @@ export async function prepareSwiftHost(session: Session, signal?: AbortSignal) {
   if (!team || !/^[A-Z0-9]{10}$/.test(team)) throw new Error('Run expo-canvas setup to choose a development signing team.');
   const inputs = await swiftInputFiles(app,spec);
   const catalogOnly = !!spec.buildIssues?.length;
-  const shellNames = ['CanvasHost.swift','CanvasInspector.swift','CanvasRenderer.swift'];
-  const shell = await Promise.all(shellNames.map(async name=>({name,bytes:await readFile(join(repository,'apps/native-host/native',name))})));
+  const shellNames = (await readdir(nativeCanvas.sources)).filter(name => name.endsWith('.swift')).sort();
+  const shell = await Promise.all(shellNames.map(async name=>({name,bytes:await readFile(join(nativeCanvas.sources,name))})));
   shell.push({name:'SwiftRenderer.swift',bytes:await readFile(join(repository,'apps/swift-host/SwiftRenderer.swift'))});
   shell.push({name:'DeviceCapabilities.swift',bytes:await readFile(join(repository,'apps/swift-host/DeviceCapabilities.swift'))});
   shell.push({name:'PreviewImages.swift',bytes:await readFile(join(repository,'apps/swift-host/PreviewImages.swift'))});
   const version = (await exec('xcodebuild',['-version'])).stdout;
   const fingerprint = createHash('sha256').update(JSON.stringify({nativeVersion:session.nativeVersion,version,team}));
+  fingerprint.update(await nativeResourceFingerprint());
   for(const file of shell) fingerprint.update(file.bytes);
   fingerprint.update(await readFile(join(repository,'src/runtime/adapters/swift/build.ts')));
   fingerprint.update(await readFile(join(repository,'src/runtime/adapters/swift/Scan.swift')));
@@ -62,7 +64,7 @@ export async function prepareSwiftHost(session: Session, signal?: AbortSignal) {
   for(const name of catalogOnly ? [] : spec.resources) resourceFiles.push(join(host,'inputs',name));
   for(const file of shell) { const dest=join(host,file.name); await writeChanged(dest,file.bytes);sourceFiles.push(dest); }
   for(const name of ['ExpoWordmark.imageset','InterMedium.dataset']) {
-    const dest=join(host,'CanvasAssets.xcassets',name);await cp(join(repository,'apps/native-host/assets',name),dest,{recursive:true});
+    const dest=join(host,'CanvasAssets.xcassets',name);await cp(join(nativeCanvas.resources,name),dest,{recursive:true});
   }
   resourceFiles.push(join(host,'CanvasAssets.xcassets'));
   const registry=join(host,'Registry.swift');

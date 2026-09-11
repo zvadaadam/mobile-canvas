@@ -24,221 +24,6 @@ class CanvasSceneDelegate: UIResponder, UIWindowSceneDelegate {
   }
 }
 
-// MARK: - Look
-
-func rgb(_ hex: UInt32) -> UIColor {
-  UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
-}
-
-/// The canvas follows Expo's light interface: neutral surfaces, hairline borders, blue only for selection.
-@MainActor
-enum Palette {
-  static let canvas = rgb(0xF2F3F5)
-  static let surface = UIColor.white
-  static let hairline = rgb(0xE4E5E9)
-  static let border = rgb(0xD5D8DE)
-  static let ink = rgb(0x1C2024)
-  static let icon = rgb(0x3C4148)
-  static let muted = rgb(0x6B7178)
-  static let faint = rgb(0x9AA0A6)
-  static let blue = rgb(0x0A7AF5)
-  static let blueTint = rgb(0xE6F0FF)
-  static let green = rgb(0x30A46C)
-  static let amber = rgb(0xF0A020)
-  static let red = rgb(0xE5484D)
-}
-
-@MainActor
-enum Fonts {
-  static func medium(_ size: CGFloat) -> UIFont { UIFont(name: "Inter-Medium", size: size) ?? .systemFont(ofSize: size, weight: .medium) }
-  static func regular(_ size: CGFloat) -> UIFont { .systemFont(ofSize: size) }
-  static func mono(_ size: CGFloat) -> UIFont { .monospacedSystemFont(ofSize: size, weight: .regular) }
-}
-
-@MainActor let hairlineWidth = 1 / UIScreen.main.scale
-@MainActor func hairline() -> UIView {
-  let line = UIView()
-  line.backgroundColor = Palette.hairline
-  return line
-}
-
-// MARK: - Frames
-
-final class FrameWindow: UIWindow {
-  var viewport = CGRect.zero
-  let viewportMask = CAShapeLayer()
-  weak var focusCover: UIView?
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    guard !isHidden, isUserInteractionEnabled, viewport.contains(point) else { return nil }
-    // React may insert native content after mounting. Selection owns the first
-    // pointer hit regardless of that content's subview order.
-    if let focusCover, !focusCover.isHidden { return focusCover }
-    return super.hitTest(point, with: event)
-  }
-  override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-    viewport.contains(point) && super.point(inside: point, with: event)
-  }
-}
-
-/// The name above a frame. It selects on click, drags the frame, and stays readable at any zoom.
-final class FrameTitle: UIControl {
-  let name = UILabel()
-  let detail = UILabel()
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    name.textColor = Palette.muted
-    name.lineBreakMode = .byTruncatingTail
-    detail.textColor = Palette.faint
-    detail.textAlignment = .right
-    detail.isHidden = true
-    addSubview(name)
-    addSubview(detail)
-    isAccessibilityElement = true
-    accessibilityTraits = .button
-    setZoom(1)
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  override func layoutSubviews() {
-    // The dimensions yield to the name when the frame is too narrow on screen for both.
-    let wanted = detail.isHidden ? 0 : ceil(detail.intrinsicContentSize.width)
-    let detailWidth = wanted > 0 && wanted < bounds.width * 0.45 ? wanted : 0
-    detail.frame = CGRect(x: bounds.width - detailWidth, y: 0, width: detailWidth, height: bounds.height)
-    name.frame = CGRect(x: 0, y: 0, width: max(0, bounds.width - detailWidth - (detailWidth > 0 ? 8 : 0)), height: bounds.height)
-  }
-  /// Fonts scale inversely with the board so the label keeps one size on screen.
-  func setZoom(_ zoom: CGFloat) {
-    name.font = Fonts.medium(12 / zoom)
-    detail.font = .monospacedDigitSystemFont(ofSize: 11 / zoom, weight: .regular)
-    setNeedsLayout()
-  }
-  func select(_ selected: Bool) {
-    name.textColor = selected ? Palette.blue : Palette.muted
-    detail.isHidden = !selected
-    setNeedsLayout()
-  }
-}
-
-final class CanvasFrame: UIViewController {
-  var rendered: CanvasRenderedFrame?
-  let id: String
-  let label = FrameTitle()
-  // A frame exists for every authored screen; its React root mounts once it scrolls into view and then stays.
-  private(set) var root: UIView?
-  private let placeholder = UILabel()
-  private let focusCover = UIControl()
-  var isMounted: Bool { root != nil }
-  var contentWindow: FrameWindow?
-  var onSelect: (() -> Void)?
-  var onMove: ((UIPanGestureRecognizer) -> Void)?
-  private(set) var selected = false
-  private var zoom: CGFloat = 1
-  // Authored device safe areas: real scroll views and safe-area hooks inset exactly as on a phone.
-  var safeAreaInsets = UIEdgeInsets.zero {
-    didSet { contentWindow?.rootViewController?.additionalSafeAreaInsets = safeAreaInsets }
-  }
-  init(id: String) {
-    self.id = id
-    super.init(nibName: nil, bundle: nil)
-    definesPresentationContext = true
-    label.accessibilityIdentifier = "canvas.frame-title." + id
-    label.addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
-    label.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragTitle(_:))))
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  func mount(rendered: CanvasRenderedFrame, in scene: UIWindowScene) {
-    guard self.root == nil else { return }
-    self.rendered = rendered
-    let root = rendered.controller.view!
-    root.accessibilityIdentifier = "canvas.frame." + id
-    self.root = root
-    placeholder.isHidden = true
-    view.setNeedsLayout()
-    attachContent(to: scene)
-  }
-  override func viewDidLoad() {
-    view.backgroundColor = Palette.surface
-    view.layer.borderColor = Palette.border.cgColor
-    view.layer.borderWidth = 1
-    view.layer.shadowColor = UIColor.black.cgColor
-    view.layer.shadowOpacity = 0.10
-    view.layer.shadowRadius = 16
-    view.layer.shadowOffset = CGSize(width: 0, height: 6)
-    placeholder.text = "Loads when it scrolls into view"
-    placeholder.textAlignment = .center
-    placeholder.numberOfLines = 0
-    placeholder.font = Fonts.medium(13)
-    placeholder.textColor = Palette.faint
-    placeholder.backgroundColor = rgb(0xFAFAFB)
-    placeholder.isAccessibilityElement = false
-    view.addSubview(placeholder)
-    focusCover.backgroundColor = .clear
-    focusCover.isAccessibilityElement = true
-    focusCover.accessibilityTraits = .button
-    focusCover.accessibilityLabel = "Focus screen"
-    focusCover.addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
-  }
-  override func viewDidLayoutSubviews() {
-    root?.frame = view.bounds
-    placeholder.frame = view.bounds
-    view.layer.shadowPath = UIBezierPath(rect: view.bounds).cgPath
-  }
-  func select(_ selected: Bool) {
-    guard self.selected != selected else { return }
-    self.selected = selected
-    focusCover.isHidden = false
-    label.select(selected)
-    applyStroke()
-  }
-  func setInteractionEnabled(_ enabled: Bool) { focusCover.isHidden = selected && enabled }
-  /// Borders stay one screen pixel wide and the name one readable size at any zoom.
-  func setZoom(_ zoom: CGFloat) {
-    self.zoom = zoom
-    label.setZoom(zoom)
-    applyStroke()
-  }
-  private func applyStroke() {
-    let width = (selected ? 2 : 1) / zoom
-    let color = (selected ? Palette.blue : Palette.border).cgColor
-    view.layer.borderWidth = width
-    view.layer.borderColor = color
-    contentWindow?.layer.borderWidth = width
-    contentWindow?.layer.borderColor = color
-  }
-  @objc private func dragTitle(_ gesture: UIPanGestureRecognizer) { onMove?(gesture) }
-  func attachContent(to scene: UIWindowScene) {
-    guard let root, contentWindow == nil else { return }
-    let window = FrameWindow(windowScene: scene)
-    window.windowLevel = .normal + 1
-    window.overrideUserInterfaceStyle = .light
-    window.clipsToBounds = true
-    guard let controller = rendered?.controller else { return }
-    controller.view.clipsToBounds = true
-    if #available(iOS 17.0, *) {
-      controller.traitOverrides.horizontalSizeClass = .compact
-      controller.traitOverrides.activeAppearance = .active
-    }
-    controller.additionalSafeAreaInsets = safeAreaInsets
-    window.rootViewController = controller
-    focusCover.frame = controller.view.bounds
-    focusCover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    controller.view.addSubview(focusCover)
-    window.focusCover = focusCover
-    window.layer.mask = window.viewportMask
-    contentWindow = window
-    window.isHidden = false
-    applyStroke()
-  }
-}
-
-// Floating tools stay above independent native frame windows without taking keyboard focus.
-final class CanvasToolsWindow: UIWindow {
-  override var canBecomeKey: Bool { false }
-  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    let hit = super.hitTest(point, with: event)
-    return hit === rootViewController?.view ? nil : hit
-  }
-}
-
 // MARK: - Canvas
 
 
@@ -271,11 +56,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private var toolsWindow: CanvasToolsWindow?
   private let inspector = CanvasInspector()
   private var inspectorVisible = true
-  private var latestSession: [String: Any] = [:]
+  private var latestSession: [String: Any] { session.dictionary }
   private var orderedIds: [String] = []
   private var mutationInFlight = false
-  private var selectionGeneration = 0
-  private var selectionPending = false
   private weak var undoButton: UIButton?
   private weak var redoButton: UIButton?
   private weak var addButton: UIButton?
@@ -294,22 +77,16 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private let flowBackArrowLayer = CAShapeLayer()
   private var flowVisible = true
   private var frames: [String: CanvasFrame] = [:]
-  private var entries: [String: [String: Any]] = [:]
-  private var workspaceId = ""
-  private var sequence = 0
+  private var entries: [String: [String: Any]] { session.entries }
+  private var workspaceId: String { session.state.workspaceId }
+  private var sequence: Int { session.state.sequence }
   private var documentName = "Expo Canvas"
-  private var selectedId: String?
-  private var fetching = false
+  private var selectedId: String? { session.state.selectedId }
   private var fitted = false
   private var dragging = false
   private var panning = false
   private var reconciledSequence = -1
-  private var motion: CADisplayLink?
-  private var motionStart: CFTimeInterval = 0
-  private var motionFromScale: CGFloat = 1
-  private var motionToScale: CGFloat = 1
-  private var motionFromCenter = CGPoint.zero
-  private var motionToCenter = CGPoint.zero
+  private let camera = CanvasCamera()
   private var inspectionScreen: String?
   private var inspectionExpiry: TimeInterval = 0
   private let inspectionRing = CAShapeLayer()
@@ -323,23 +100,23 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private var pendingReveal: (id: String, scale: CGFloat?)?
   /// The last reveal's computation, reported to the runtime so an agent can see why the canvas looks where it does.
   private var note = ""
-  private var poll: Timer?
   private var previewActivity: NSObjectProtocol?
   private var acknowledged = 0
   private let hostId = argument("--host-id") ?? UUID().uuidString
-  private let runtime: URL?
+  private let session: CanvasSession
+  private var runtime: URL? { session.client.baseURL }
+  private var reporting = false
   private enum Tone { case idle, busy, ready, error }
 
   init(renderer: CanvasRendering) {
     self.renderer = renderer
     let candidate = URL(string: argument("--canvas-runtime") ?? "")
-    runtime = candidate?.scheme == "http" && candidate?.host == "127.0.0.1" && candidate?.port != nil ? candidate : nil
+    session = CanvasSession(client: CanvasRuntimeClient(url: candidate))
     super.init(nibName: nil, bundle: nil)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   isolated deinit {
-    poll?.invalidate()
-    motion?.invalidate()
+    camera.stop()
     if let previewActivity { ProcessInfo.processInfo.endActivity(previewActivity) }
   }
 
@@ -443,9 +220,9 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     if runtime != nil && ProcessInfo.processInfo.isiOSAppOnMac {
       previewActivity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Running the explicitly opened Expo design canvas")
     }
-    refresh()
-    poll = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.refresh() }
-    RunLoop.main.add(poll!, forMode: .common)
+    session.onChange = { [weak self] changed in self?.renderSession(contentChanged: changed) }
+    session.onError = { [weak self] error in self?.setStatus(error.localizedDescription, .error) }
+    session.start()
   }
 
   // MARK: Toolbar
@@ -743,7 +520,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   }
   private func positionContentWindows() {
     guard let canvasWindow = view.window else { return }
-    if motion == nil && !scroll.isDragging && !scroll.isDecelerating && !scroll.isZooming { mountVisibleFrames() }
+    if !camera.isMoving && !scroll.isDragging && !scroll.isDecelerating && !scroll.isZooming { mountVisibleFrames() }
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     defer { CATransaction.commit() }
@@ -777,25 +554,14 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     guard !mutationInFlight else { return }
     mutationInFlight = true
     updateEditor()
-    request("arrange", body: ["workspaceId": workspaceId, "sequence": sequence]) { [weak self] result in
+    session.client.request("arrange", body: ["workspaceId": workspaceId, "sequence": sequence], as: CanvasMutationReceipt.self) { [weak self] result in
       guard let self else { return }
       self.mutationInFlight = false
-      switch result {
-      case .success(let response):
-        if let session = response["session"] as? [String: Any], let project = session["project"] as? [String: Any],
-          let document = project["document"] as? [String: Any], let records = document["screens"] as? [String: [String: Any]], let order = document["screenIds"] as? [String] {
-          self.latestSession = session
-          self.sequence = project["sequence"] as? Int ?? self.sequence
-          self.entries = records
-        for (id, frame) in self.frames {
-          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
-        }
-          self.orderedIds = order
-          self.reconcile(order: order)
-          self.fit()
-        }
-      case .failure(let error): self.showError(error)
-      }
+      do {
+        try self.session.accept(result.get().session)
+        self.fit()
+      } catch { self.showError(error) }
+      self.updateEditor()
       self.refresh()
     }
   }
@@ -926,10 +692,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     if panning { contextLabel.text = "Pan · Drag anywhere to move the canvas · Click the hand again to interact" } else { updateEditor() }
     positionContentWindows()
   }
-  private func stopMotion() {
-    motion?.invalidate()
-    motion = nil
-  }
+  private func stopMotion() { camera.stop() }
   private var viewportCenter: CGPoint {
     CGPoint(x: (scroll.contentOffset.x + scroll.bounds.width / 2) / scroll.zoomScale,
             y: (scroll.contentOffset.y + scroll.bounds.height / 2) / scroll.zoomScale)
@@ -944,29 +707,10 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     CATransaction.commit()
   }
   private func moveViewport(scale: CGFloat, center: CGPoint, animated: Bool) {
-    stopMotion()
-    let target = min(1.5, max(0.1, scale))
-    guard animated && !UIAccessibility.isReduceMotionEnabled else {
-      setViewport(scale: target, center: center)
-      reportHost()
-      return
-    }
-    motionFromScale = scroll.zoomScale
-    motionToScale = target
-    motionFromCenter = viewportCenter
-    motionToCenter = center
-    motionStart = CACurrentMediaTime()
-    let link = CADisplayLink(target: self, selector: #selector(stepViewport(_:)))
-    motion = link
-    link.add(to: .main, forMode: .common)
-  }
-  @objc private func stepViewport(_ link: CADisplayLink) {
-    let progress = min(1, (link.timestamp - motionStart) / 0.22)
-    let t = CGFloat(1 - pow(1 - max(0, progress), 3))
-    setViewport(scale: motionFromScale + (motionToScale - motionFromScale) * t,
-      center: CGPoint(x: motionFromCenter.x + (motionToCenter.x - motionFromCenter.x) * t,
-                      y: motionFromCenter.y + (motionToCenter.y - motionFromCenter.y) * t))
-    if progress >= 1 { stopMotion(); positionContentWindows(); reportHost() }
+    camera.move(from: .init(scale: scroll.zoomScale, center: viewportCenter),
+      to: .init(scale: CanvasViewport.clamp(scale), center: center), animated: animated,
+      apply: { [weak self] position in self?.setViewport(scale: position.scale, center: position.center) },
+      completion: { [weak self] in self?.positionContentWindows(); self?.reportHost() })
   }
   func scrollViewWillBeginDragging(_ scrollView: UIScrollView) { stopMotion() }
   func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
@@ -978,28 +722,24 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   private func zoom(by scale: CGFloat) { moveViewport(scale: scroll.zoomScale * scale, center: viewportCenter, animated: false) }
   private func fit() {
     for frame in frames.values { frame.setInteractionEnabled(false) }
-    guard boardSize.width > 0 && boardSize.height > 0 && scroll.bounds.width > 0 else { return }
-    let width = scroll.bounds.width - boardMargins.left - boardMargins.right
-    let height = scroll.bounds.height - boardMargins.top - boardMargins.bottom - canvasToolsClearance
-    let scale = max(scroll.minimumZoomScale, min(1, min(width / boardSize.width, height / boardSize.height)))
-    moveViewport(scale: scale,
-      center: CGPoint(x: boardSize.width / 2, y: boardSize.height / 2 + canvasToolsClearance / (2 * scale)), animated: false)
+    guard let target = CanvasViewport.fit(board: boardSize, viewport: scroll.bounds.size,
+      horizontalMargins: boardMargins.left + boardMargins.right,
+      verticalMargins: boardMargins.top + boardMargins.bottom, toolsClearance: canvasToolsClearance) else { return }
+    moveViewport(scale: target.scale, center: target.center, animated: false)
   }
   /// Fit the entire screen and its readable title, accounting for inspector and toolbar.
   private func reveal(_ id: String, scale: CGFloat? = nil, animated: Bool) {
     guard let frame = frames[id] else { return }
-    guard scroll.bounds.width > 100 else { pendingReveal = (id, scale); return }
+    guard let target = CanvasViewport.focus(frame: frame.view.frame, viewport: scroll.bounds.size,
+      scale: scale, toolsClearance: canvasToolsClearance) else { pendingReveal = (id, scale); return }
     fitted = true
     frame.setInteractionEnabled(true)
-    let body = frame.view.frame
-    let fitScale = min(1, min((scroll.bounds.width - 96) / body.width, (scroll.bounds.height - 112 - canvasToolsClearance) / body.height))
-    let zoom = scale ?? fitScale
-    note = "Focused \(id) · whole screen at \(Int(zoom * 100))%"
-    moveViewport(scale: zoom, center: CGPoint(x: body.midX, y: body.midY + (canvasToolsClearance / 2 - 14) / zoom), animated: animated)
+    note = "Focused \(id) · whole screen at \(Int(target.scale * 100))%"
+    moveViewport(scale: target.scale, center: target.center, animated: animated)
   }
-  private func showInspection(_ value: [String: Any]?) {
-    let nextScreen = value?["screenId"] as? String
-    let nextExpiry = (value?["expiresAt"] as? Double ?? 0) / 1000
+  private func showInspection(_ value: CanvasHostReceipt.Inspection?) {
+    let nextScreen = value?.screenId
+    let nextExpiry = (value?.expiresAt ?? 0) / 1000
     if nextScreen != inspectionScreen || nextExpiry != inspectionExpiry {
       inspectionRing.removeAnimation(forKey: "inspection-fade")
       inspectionLabel.layer.removeAnimation(forKey: "inspection-fade")
@@ -1017,7 +757,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     }
     inspectionScreen = nextScreen
     inspectionExpiry = nextExpiry
-    inspectionLabel.text = value?["status"] as? String == "captured" ? "  Captured for agent  " : "  Agent inspecting  "
+    inspectionLabel.text = value?.status == "captured" ? "  Captured for agent  " : "  Agent inspecting  "
     positionInspection()
   }
   private func positionInspection() {
@@ -1036,98 +776,43 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
 
   // MARK: Runtime
 
-  private func request(_ path: String, body: [String: Any]? = nil, completion: @escaping @MainActor @Sendable (Result<[String: Any], Error>) -> Void) {
-    guard let runtime, let url = URL(string: "\(runtime.absoluteString)/api/\(path)") else { return }
-    var request = URLRequest(url: url)
-    request.timeoutInterval = 3
-    if let body {
-      request.httpMethod = "POST"
-      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-    }
-    URLSession.shared.dataTask(with: request) { data, response, error in
-      DispatchQueue.main.async {
-      let result: Result<[String: Any], Error>
-      do {
-        if let error { throw error }
-        let json = try JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any] ?? [:]
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-          throw NSError(domain: "ExpoCanvas", code: 1, userInfo: [NSLocalizedDescriptionKey: (json["error"] as? [String: Any])?["message"] as? String ?? "Canvas request failed"])
-        }
-        result = .success(json)
-      } catch { result = .failure(error) }
-      completion(result)
-      }
-    }.resume()
+  private func request(_ path: String, body: [String: Any]? = nil, completion: @escaping @MainActor (Result<[String: Any], Error>) -> Void) {
+    session.client.request(path, body: body, completion: completion)
   }
-  private func refresh() {
-    guard runtime != nil && !fetching else { return }
-    fetching = true
-    let generation = selectionGeneration
-    let wasSelecting = selectionPending
-    request("session") { [weak self] result in
-      guard let self else { return }
-      self.fetching = false
-      switch result {
-      case .failure(let error): self.setStatus("Reconnecting · \(error.localizedDescription)", .error)
-      case .success(let session):
-        guard let project = session["project"] as? [String: Any], let id = project["workspaceId"] as? String,
-          let doc = project["document"] as? [String: Any], let records = doc["screens"] as? [String: [String: Any]],
-          let order = doc["screenIds"] as? [String] else { return }
-        if !self.workspaceId.isEmpty && self.workspaceId != id {
-          self.setStatus("Project identity changed. Reopen the native canvas.", .error)
-          return
-        }
-        if (project["sequence"] as? Int ?? 0) < self.sequence { return }
-        let previousSequence = self.sequence
-        let previousSelection = self.selectedId
-        let previousVersion = self.latestSession["codeVersion"] as? String
-        self.workspaceId = id
-        self.sequence = project["sequence"] as? Int ?? 0
-        self.documentName = doc["name"] as? String ?? "Expo Canvas"
-        self.titleLabel.text = self.documentName + ((doc["appPreview"] as? [String: Any])?["offline"] as? Bool == true ? " · Design preview" : "")
-        self.latestSession = session
-        self.orderedIds = order
-        self.entries = records
-        for (id, frame) in self.frames {
-          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
-        }
-        if !wasSelecting && !self.selectionPending && generation == self.selectionGeneration {
-          self.selectedId = (session["selection"] as? [String])?.first
-        }
-        if previousSequence != self.sequence || previousSelection != self.selectedId || previousVersion != session["codeVersion"] as? String {
-          self.updateEditor()
-        }
-        if !self.dragging && self.reconciledSequence != self.sequence {
-          self.reconcile(order: order)
-          self.reconciledSequence = self.sequence
-        } else {
-          for (id, frame) in self.frames { frame.select(id == self.selectedId) }
-        }
-        self.reportHost()
-      }
+  private func refresh() { session.refresh() }
+
+  private func renderSession(contentChanged: Bool) {
+    guard let snapshot = session.state.snapshot else { return }
+    documentName = snapshot.project.document.name
+    let document = latestSession["project"] as? [String: Any]
+    let offline = ((document?["document"] as? [String: Any])?["appPreview"] as? [String: Any])?["offline"] as? Bool == true
+    titleLabel.text = documentName + (offline ? " · Design preview" : "")
+    orderedIds = snapshot.project.document.screenIds
+    for (id, frame) in frames { frame.rendered?.update(entries[id] ?? [:], snapshot.codeVersion) }
+    if contentChanged { updateEditor() }
+    if !dragging && reconciledSequence != sequence {
+      reconcile(order: orderedIds)
+      reconciledSequence = sequence
+    } else {
+      for (id, frame) in frames { frame.select(id == selectedId) }
     }
+    reportHost()
   }
   private func reconcile(order: [String]) {
+    guard let records = session.state.snapshot?.project.document.screens else { return }
     let visible = Array(order.prefix(maxScreens))
     for id in frames.keys.filter({ !visible.contains($0) }) {
       guard let frame = frames.removeValue(forKey: id) else { continue }
-      frame.rendered?.dispose()
-      frame.contentWindow?.isHidden = true
-      frame.contentWindow = nil
-      frame.label.removeFromSuperview()
-      frame.willMove(toParent: nil)
-      frame.view.removeFromSuperview()
-      frame.removeFromParent()
+      frame.unmount()
     }
     // Frames are created for every authored screen; React roots mount lazily and stay mounted.
-    let minX = visible.compactMap { entries[$0]?["x"] as? Double }.min() ?? 0
-    let minY = visible.compactMap { entries[$0]?["y"] as? Double }.min() ?? 0
+    let minX = visible.compactMap { records[$0]?.x }.min() ?? 0
+    let minY = visible.compactMap { records[$0]?.y }.min() ?? 0
     worldOffset = CGPoint(x: -minX, y: -minY)
     var maxX: CGFloat = 0
     var maxY: CGFloat = 0
     for id in visible {
-      guard let entry = entries[id] else { continue }
+      guard let entry = records[id] else { continue }
       let frame: CanvasFrame
       if let existing = frames[id] {
         frame = existing
@@ -1146,15 +831,14 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
         for gesture in frame.label.gestureRecognizers ?? [] { scroll.panGestureRecognizer.require(toFail: gesture) }
         frames[id] = frame
       }
-      let width = entry["width"] as? Double ?? 402
-      let height = entry["height"] as? Double ?? 874
-      frame.label.name.text = entry["name"] as? String ?? "Screen"
+      let width = entry.width
+      let height = entry.height
+      frame.label.name.text = entry.name
       frame.label.detail.text = "\(Int(width)) × \(Int(height))"
-      frame.label.accessibilityLabel = entry["name"] as? String ?? "Screen"
-      let insets = entry["insets"] as? [String: Any] ?? [:]
-      frame.safeAreaInsets = UIEdgeInsets(top: insets["top"] as? Double ?? 0, left: insets["left"] as? Double ?? 0,
-        bottom: insets["bottom"] as? Double ?? 0, right: insets["right"] as? Double ?? 0)
-      let rect = CGRect(x: (entry["x"] as? Double ?? 0) + worldOffset.x, y: (entry["y"] as? Double ?? 0) + worldOffset.y, width: width, height: height)
+      frame.label.accessibilityLabel = entry.name
+      frame.safeAreaInsets = UIEdgeInsets(top: entry.insets?.top ?? 0, left: entry.insets?.left ?? 0,
+        bottom: entry.insets?.bottom ?? 0, right: entry.insets?.right ?? 0)
+      let rect = CGRect(x: entry.x + worldOffset.x, y: entry.y + worldOffset.y, width: width, height: height)
       frame.view.frame = rect
       frame.setZoom(scroll.zoomScale)
       layoutTitle(frame)
@@ -1174,19 +858,10 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
   }
   private func select(_ id: String, reveal: Bool = false) {
     guard entries[id] != nil else { return }
-    selectedId = id
+    session.select(id)
     for (key, frame) in frames { frame.select(key == id) }
     updateEditor()
     drawFlow()
-    selectionGeneration += 1
-    selectionPending = true
-    let generation = selectionGeneration
-    request("selection", body: ["workspaceId": workspaceId, "ids": [id]]) { [weak self] result in
-      guard let self, self.selectionGeneration == generation else { return }
-      self.selectionPending = false
-      self.selectionGeneration += 1
-      if case .failure(let error) = result { self.inspector.showError(error.localizedDescription) }
-    }
     if reveal { self.reveal(id, animated: true) }
   }
   private func updateEditor() {
@@ -1255,34 +930,22 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     command["operations"] = operations
     mutationInFlight = true
     updateEditor()
-    request("command", body: command) { [weak self] result in
+    session.client.request("command", body: command, as: CanvasMutationReceipt.self) { [weak self] result in
       guard let self else { return }
       self.mutationInFlight = false
-      switch result {
-      case .success(let result):
-        if let session = result["session"] as? [String: Any] {
-          self.latestSession = session
-          if let project = session["project"] as? [String: Any] { self.sequence = project["sequence"] as? Int ?? self.sequence }
-          self.inspector.update(session: session, selected: self.selectedId)
-        }
+      do {
+        let receipt = try result.get()
+        try self.session.accept(receipt.session)
         completion?(.success(()))
-        if let created = result["created"] as? [String: String], let id = created.values.first {
-          // Reconcile before focus so a newly authored frame can receive selection.
-          if let project = self.latestSession["project"] as? [String: Any], let document = project["document"] as? [String: Any],
-            let records = document["screens"] as? [String: [String: Any]], let order = document["screenIds"] as? [String] {
-            self.entries = records
-        for (id, frame) in self.frames {
-          frame.rendered?.update(records[id] ?? [:], self.latestSession["codeVersion"] as? String ?? "")
+        if let id = receipt.created?.values.first {
+          // Session acceptance reconciles the new frame before focusing it.
+          self.select(id, reveal: true)
         }
-            self.orderedIds = order
-            self.reconcile(order: order)
-            self.select(id, reveal: true)
-          }
-        }
-      case .failure(let error):
+      } catch {
         self.showError(error)
         completion?(.failure(error))
       }
+      self.updateEditor()
       self.refresh()
     }
   }
@@ -1317,6 +980,7 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       guard let self else { return }
       self.mutationInFlight = false
       if case .failure(let error) = result { self.showError(error) }
+      self.updateEditor()
       self.refresh()
     }
   }
@@ -1352,11 +1016,13 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
       let operation: [String: Any] = ["type": "screen.update", "id": id, "patch": ["x": point.x - worldOffset.x, "y": point.y - worldOffset.y]]
       request("command", body: ["workspaceId": workspaceId, "sequence": dragSequence, "requestId": UUID().uuidString, "label": "Move screen", "operations": [operation]]) { [weak self] result in
         self?.dragging = false
+        self?.reconciledSequence = -1
         if case .failure(let error) = result { self?.setStatus(error.localizedDescription, .error) }
         self?.refresh()
       }
     case .cancelled, .failed:
       dragging = false
+      reconciledSequence = -1
       refresh()
     default: break
     }
@@ -1409,23 +1075,30 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
     }
   }
   private func reportHost() {
+    guard !reporting, !workspaceId.isEmpty else { return }
+    reporting = true
     let mountedCount = frames.values.filter(\.isMounted).count
     let zoom = max(0.01, scroll.zoomScale)
     let viewport: [String: Any] = ["x": scroll.contentOffset.x / zoom, "y": scroll.contentOffset.y / zoom, "width": scroll.bounds.width / zoom, "height": scroll.bounds.height / zoom]
-    request("studio/report", body: ["kind": "host", "workspaceId": workspaceId, "hostId": hostId,
+    session.client.request("studio/report", body: ["kind": "host", "workspaceId": workspaceId, "hostId": hostId,
       "pid": ProcessInfo.processInfo.processIdentifier, "screenIds": frames.values.filter(\.isMounted).map(\.id), "acknowledged": acknowledged,
       "width": view.bounds.width, "height": view.bounds.height, "zoom": scroll.zoomScale, "viewport": viewport, "note": String(note.prefix(1000)),
-      "platform": ProcessInfo.processInfo.isiOSAppOnMac ? "ios-on-mac" : "ios", "focusedScreenId": selectedId ?? NSNull(), "settled": motion == nil && !scroll.isDragging && !scroll.isZooming && !scroll.isDecelerating, "screenCapture": true, "error": NSNull()]) { [weak self] result in
-      guard let self, case .success(let response) = result else { return }
-      if let error = response["error"] as? String {
+      "platform": ProcessInfo.processInfo.isiOSAppOnMac ? "ios-on-mac" : "ios", "focusedScreenId": selectedId ?? NSNull(), "settled": !camera.isMoving && !scroll.isDragging && !scroll.isZooming && !scroll.isDecelerating, "screenCapture": true, "error": NSNull()], as: CanvasHostReceipt.self) { [weak self] result in
+      guard let self else { return }
+      self.reporting = false
+      guard case .success(let response) = result else {
+        if case .failure(let error) = result { self.setStatus(error.localizedDescription, .error) }
+        return
+      }
+      if let error = response.error {
         self.setStatus(error, .error)
       } else {
-        let count = response["readyCount"] as? Int ?? 0
-        if ["ready", "degraded"].contains(response["phase"] as? String ?? "") {
+        let count = response.readyCount
+        if ["ready", "degraded"].contains(response.phase) {
           let rendererName = self.renderer.name
-          let waiting = response["waitingCount"] as? Int ?? 0
-          let needsState = response["needsStateCount"] as? Int ?? 0
-          let failures = response["screenErrorCount"] as? Int ?? 0
+          let waiting = response.waitingCount
+          let needsState = response.needsStateCount
+          let failures = response.screenErrorCount
           let pending = waiting + needsState
           let coverage = (pending > 0 ? " · \(pending) need state or parameters" : "") + (failures > 0 ? " · \(failures) frame errors" : "")
           self.setStatus("\(count) frames running\(coverage) · \(rendererName) · iOS on Mac", .ready)
@@ -1433,27 +1106,26 @@ final class CanvasController: UIViewController, UIScrollViewDelegate {
           self.setStatus("Loading screens · \(count) of \(mountedCount) current", .busy)
         }
       }
-      self.showInspection(response["inspection"] as? [String: Any])
-      guard let command = response["command"] as? [String: Any], let id = command["id"] as? Int, id > self.acknowledged else { return }
-      self.acknowledged = id
-      if command["type"] as? String == "focus", let screen = command["screenId"] as? String {
+      self.showInspection(response.inspection)
+      guard let command = response.command, command.id > self.acknowledged else { return }
+      self.acknowledged = command.id
+      switch command.action {
+      case .focus(let screen, let from):
         self.select(screen, reveal: true)
-        if let from = command["from"] as? String { self.pulseFlow(from: from, to: screen) }
-      }
-      if command["type"] as? String == "fit" { self.fit() }
-      if command["type"] as? String == "capture" { self.snapshot(command: id, screenId: command["screenId"] as? String) }
-      if command["type"] as? String == "zoom", let scale = command["scale"] as? Double {
-        // An explicit zoom, including the one that reveals a requested screen on open, outranks the first-layout fit.
+        if let from { self.pulseFlow(from: from, to: screen) }
+      case .fit: self.fit()
+      case .capture(let screen): self.snapshot(command: command.id, screenId: screen)
+      case .zoom(let scale, let screen):
         self.fitted = true
-        if let screen = command["screenId"] as? String {
+        if let screen {
           self.select(screen)
           self.reveal(screen, scale: CGFloat(scale), animated: false)
         } else {
-          self.scroll.setZoomScale(min(1.5, max(0.1, scale)), animated: false)
+          self.scroll.setZoomScale(CanvasViewport.clamp(scale), animated: false)
           self.scrollViewDidZoom(self.scroll)
         }
+      case .stop: exit(0)
       }
-      if command["type"] as? String == "stop" { exit(0) }
     }
   }
 }

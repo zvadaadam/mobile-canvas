@@ -122,10 +122,21 @@ private final class SwiftFrameContainer: UIViewController {
   }
 }
 
+nonisolated private struct SwiftFrameReceipt: Decodable, Sendable {
+  nonisolated struct Command: Decodable, Sendable {
+    nonisolated enum Kind: String, Decodable, Sendable { case reset }
+    let id: Int
+    let type: Kind
+  }
+  let accepted: Bool
+  let command: Command?
+}
+
 @MainActor
 private final class SwiftFrameSession {
   let container = SwiftFrameContainer()
   private let request: CanvasFrameRequest
+  private let client: CanvasRuntimeClient
   private var entry: [String: Any]
   private var context: CanvasPreviewContext
   private var codeVersion: String
@@ -136,6 +147,7 @@ private final class SwiftFrameSession {
   private var issue: String?
   init(_ request: CanvasFrameRequest) {
     self.request = request
+    client = CanvasRuntimeClient(url: request.runtime)
     entry = request.entry
     codeVersion = request.codeVersion
     context = CanvasPreviewContext(entry: request.entry)
@@ -155,7 +167,7 @@ private final class SwiftFrameSession {
       context.bounds = CanvasPreviewContext.frameBounds(entry)
     }
   }
-  func dispose() { timer?.invalidate(); timer = nil; container.dismiss(animated: false) }
+  func dispose() { timer?.invalidate(); timer = nil; client.cancelAll(); container.dismiss(animated: false) }
   private func mount() {
     let native = context.props["native"] as? [String: Any] ?? [:]
     issue = native["issue"] as? String
@@ -177,25 +189,17 @@ private final class SwiftFrameSession {
       "screenId": request.id, "acknowledged": acknowledged, "codeVersion": codeVersion,
       "nativeVersion": CanvasSwiftRegistry.nativeVersion, "mountedAt": mountedAt,
       "state": state, "navigation": navigation as Any? ?? NSNull(), "error": NSNull()]
-    guard let bytes = try? JSONSerialization.data(withJSONObject: payload) else { reporting = false; return }
-    var call = URLRequest(url: request.runtime.appendingPathComponent("api/studio/report"))
-    call.httpMethod = "POST"; call.httpBody = bytes
-    call.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    URLSession.shared.dataTask(with: call) { [weak self] data, _, _ in
-      DispatchQueue.main.async {
-        guard let self else { return }
-        self.reporting = false
-        guard let data, let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any], response["accepted"] as? Bool == true else { return }
-        if self.context.navigation == navigation { self.context.navigation = nil }
-        if let command = response["command"] as? [String: Any], let id = command["id"] as? Int, id > self.acknowledged {
-          self.acknowledged = id
-          if command["type"] as? String == "reset" {
-            self.context = CanvasPreviewContext(entry: self.entry)
-            self.mount()
-          }
-        }
+    client.request("studio/report", body: payload, as: SwiftFrameReceipt.self) { [weak self] result in
+      guard let self else { return }
+      self.reporting = false
+      guard case .success(let response) = result, response.accepted else { return }
+      if self.context.navigation == navigation { self.context.navigation = nil }
+      if let command = response.command, command.id > self.acknowledged {
+        self.acknowledged = command.id
+        self.context = CanvasPreviewContext(entry: self.entry)
+        self.mount()
       }
-    }.resume()
+    }
   }
 }
 

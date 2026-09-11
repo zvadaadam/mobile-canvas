@@ -7,7 +7,7 @@ import { copyTemplate } from '../src/runtime/host/copy-template';
 import { nativeAppPath } from '../src/runtime/installation';
 import { quoteConstantsPaths, escapePrebuiltPaths } from '../src/runtime/host/build-scripts';
 import { execFileSync } from 'node:child_process';
-import { appDependencies } from '../src/runtime/app-dependencies';
+import { appDependencies } from '../src/runtime/adapters/expo/app-dependencies';
 
 test('read-only installed templates produce editable copies and can be refreshed', async t => {
   const root = await mkdtemp(join(tmpdir(), 'canvas-template-'));

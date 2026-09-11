@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { buildRouteMap } from '../src/runtime/frames';
+import { buildRouteMap } from '../src/runtime/adapters/expo/frames';
 import { observeGuardValues, setGuardPreview, resetGuardPreview } from '../apps/linked-host/GuardPreview';
 import { disconnectedSpeechStart } from '../apps/linked-host/design/speech-adapter';
 import { containFrameErrors } from '../apps/native-host/frame-errors';

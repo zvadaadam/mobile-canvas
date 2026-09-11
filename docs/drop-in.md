@@ -57,7 +57,7 @@ For source-only discovery on other SDKs, `map --app` or `canvas_import` with `li
 
 ## Workout verification · September 10, 2026
 
-The unmodified app at `/Users/zvada/conductor/workspaces/expo-workout-app/pen-board-refresh-followups` produced 20 routes and 31 static content links without using `designs/workout`. A separate Expo 57 host built under Xcode 26.6 and rendered the real screens, native navigation, exercise library and bundled workout plans. Starting Lower Body opened its real native workout sheet with exercises and set controls. A clean reopen reported all 20 frames current with no startup console errors. Record-specific frames correctly displayed missing-record states until given parameters.
+The unmodified app at `/path/to/expo-workout-app` produced 20 routes and 31 static content links without using `designs/workout`. A separate Expo 57 host built under Xcode 26.6 and rendered the real screens, native navigation, exercise library and bundled workout plans. Starting Lower Body opened its real native workout sheet with exercises and set controls. A clean reopen reported all 20 frames current with no startup console errors. Record-specific frames correctly displayed missing-record states until given parameters.
 
 All 29 automated tests and the runtime, authored-host and generated Expo 57 host TypeScript checks passed. Actual MCP `--app` bootstrap and capture were exercised. The existing Expo 54 host also rebuilt, reopened `designs/workout`, and its pixels were inspected. Local evidence: `.context/workout-live-verified.png`, `.context/workout-live-interaction.png`, `.context/workout-live-final-state.json`. The tested project is `.context/workout-live`; `.context/workout-live-mcp.json` points MCP at that already-built experiment.
 

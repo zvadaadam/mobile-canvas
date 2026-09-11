@@ -1,6 +1,6 @@
 # Expo and Swift native adapters
 
-Status: architecture proposal, 2026-09-10. This does not change the current supported project formats or claim that Swift apps already run in Canvas.
+Historical architecture proposal, 2026-09-10. The coupling table and implementation stages below describe the starting point, not the current tree. Experimental Swift support has since shipped; read [current architecture](architecture.md#experimental-swift-adapter), [the contributor map](../CONTRIBUTING.md) and [verified Swift build limits](swift-xcode-builds.md) for current behavior.
 
 ## Recommendation
 
@@ -158,7 +158,7 @@ One compiled app-derived host owns a compatible native dependency graph. Renderi
 
 ## DEUS / paris-v5 as the first Swift reference
 
-Inspected `/Users/zvada/conductor/workspaces/opendevs-mobile/paris-v5` at HEAD `19605b0f05c83edd834884400751bf4520f6014d`, with pre-existing local changes, including `WorkspaceReviewDemo.swift` and stores. Findings describe that working tree, not an immutable regression fixture. No source files in that app were changed for this investigation.
+Inspected `/path/to/opendevs-mobile` at HEAD `19605b0f05c83edd834884400751bf4520f6014d`, with pre-existing local changes, including `WorkspaceReviewDemo.swift` and stores. Findings describe that working tree, not an immutable regression fixture. No source files in that app were changed for this investigation.
 
 - Native SwiftUI app in `ios/DEUS.xcodeproj`; its npm/EAS files are delivery configuration. A dependency-free package.json must not cause Expo misclassification.
 - Swift 6, iOS 17 deployment target, UIKit/SwiftUI plus Apple system frameworks. `DEUSCore` is compiled directly into the app module as well as exposed through its own Swift package.

@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin, stderr } from 'node:process';
 import { inspectEnvironment } from './environment';
 import { saveSigningTeam, dataDirectory, cacheDirectory } from './installation';
-import { appDependencies } from './app-dependencies';
+import { appDependencies } from './adapters/expo/app-dependencies';
 
 export function formatEnvironment(report: Awaited<ReturnType<typeof inspectEnvironment>>, currentRoot = false) {
   return ['Expo Canvas · Mac setup', '', ...report.checks.flatMap(check => [

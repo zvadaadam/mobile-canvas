@@ -13,18 +13,21 @@ const run = promisify(execFile);
 const output = resolve('.context/compatibility/swift');
 await mkdir(output, {recursive:true});
 for (const app of apps) {
+  const checkout = process.env[app.checkoutEnv];
+  assert.ok(checkout, `Set ${app.checkoutEnv} to an existing checkout of the private ${app.id} reference. Public Swift fixtures run in npm test.`);
+  const local = resolve(checkout);
   // Private local references are opt-in. Never fetch, checkout, or edit them.
-  assert.equal((await run('git',['-C',app.local,'rev-parse','HEAD'])).stdout.trim(),app.revision,'Use the pinned Swift checkout');
-  assert.equal((await run('git',['-C',app.local,'status','--porcelain','--untracked-files=no'])).stdout.trim(),'','The pinned Swift checkout has source changes');
+  assert.equal((await run('git',['-C',local,'rev-parse','HEAD'])).stdout.trim(),app.revision,'Use the pinned Swift checkout');
+  assert.equal((await run('git',['-C',local,'status','--porcelain','--untracked-files=no'])).stdout.trim(),'','The pinned Swift checkout has source changes');
   const directory=await mkdtemp(join(output,app.id+'-'));
   let store: ProjectStore | undefined;
   try {
-    const spec=await loadSwiftProject(app.local);
+    const spec=await loadSwiftProject(local);
     assert.equal(spec.files.length,app.sourceFiles);
     assert.equal(!spec.buildIssues?.length,app.liveAppPreview);
     assert.equal(spec.buildStrategy,app.buildStrategy);
-    store=await ProjectStore.initialize(directory,app.id,{app:app.local,spec});
-    const map=()=>importSwift(store!,{...identityOf(store!.session()),requestId:crypto.randomUUID(),from:app.local,link:true,map:true});
+    store=await ProjectStore.initialize(directory,app.id,{app:local,spec});
+    const map=()=>importSwift(store!,{...identityOf(store!.session()),requestId:crypto.randomUUID(),from:local,link:true,map:true});
     const first=await map(), before=store.session();
     const flow=first.import.routeMap;
     assert.equal(flow.nodes.length,app.destinations);
@@ -43,7 +46,7 @@ for (const app of apps) {
     }
     await map();
     assert.deepEqual(store.session().project,before.project,'Repeated mapping must preserve IDs, notes, geometry and sequence');
-    await importSwift(store,{...identityOf(store.session()),requestId:crypto.randomUUID(),from:app.local,link:true,map:true,swiftContext:'application'});
+    await importSwift(store,{...identityOf(store.session()),requestId:crypto.randomUUID(),from:local,link:true,map:true,swiftContext:'application'});
     const application=store.session();
     const applicationScreens=Object.values(application.project.document.screens);
     assert.equal(applicationScreens.filter(s=>(s.props.native as any).factory).length,app.applicationPreviewCandidates);

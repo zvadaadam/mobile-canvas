@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import { relative, sep } from 'node:path';
-import type { RoutePager } from '../shared/routes';
+import type { RoutePager } from '../../../shared/routes';
 
 type Reader = (file: string) => Promise<string>;
 type Resolver = (file: string, specifier: string) => string | null;

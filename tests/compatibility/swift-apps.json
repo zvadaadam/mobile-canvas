@@ -1,7 +1,7 @@
 [
   {
     "id": "bettermind",
-    "local": "/Users/zvada/Developer/mind/bettermind-ios/.conductor/santa-fe-v1",
+    "checkoutEnv": "CANVAS_TEST_BETTERMIND",
     "revision": "5f92173576d9e80b83b61a80c08cce77c4cb7ed2",
     "sourceFiles": 310,
     "destinations": 68,

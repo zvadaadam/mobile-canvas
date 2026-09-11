@@ -28,14 +28,14 @@ import {
   type Session,
 } from "../shared/model";
 import { ImportSchema, type ImportReport } from "../shared/import";
-import { copyModules, planImport } from "./import";
+import { copyModules, planImport } from "./adapters/expo/import";
 import { readRegularFileBounded, writeFileAtomically } from "./atomic-file";
 import { createMutex } from "./mutex";
 import { projectPath } from "./paths";
 import { CanvasError } from "./errors";
 import { screenTemplate } from "./template";
 import { arrangeByFlow } from "./arrange";
-import { routeCard } from "./route-card";
+import { routeCard } from "./adapters/expo/route-card";
 import { routeContext, linkedRouteSource } from "./host/route-context";
 
 export const digest = (value: string | Uint8Array) =>

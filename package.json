@@ -19,6 +19,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "studio:build": "node --import tsx src/runtime/host/build.ts",
     "test:compat": "node --import tsx scripts/test-compatibility.ts",
+    "test:compat:public": "node --import tsx scripts/test-compatibility.ts --public",
     "test:compat:native": "node --import tsx scripts/test-compatibility.ts --native",
     "test:compat:swift": "node --import tsx scripts/test-swift-compatibility.ts",
     "test:package": "node --import tsx scripts/test-package.ts",
@@ -35,9 +36,13 @@
     "@types/node": "24.13.3"
   },
   "files": [
+    "CONTRIBUTING.md",
+    "AGENTS.md",
+    "goal.md",
     "bin/",
     "src/",
     "packages/preview/",
+    "packages/native-canvas/",
     "apps/linked-host/",
     "apps/swift-host/",
     "apps/native-host/*.tsx",
@@ -47,8 +52,7 @@
     "apps/native-host/app.json",
     "apps/native-host/package.json",
     "apps/native-host/tsconfig.json",
-    "apps/native-host/native/",
-    "apps/native-host/assets/",
+    "apps/native-host/native/ExpoRenderer.swift",
     "docs/",
     "apps/native-host/dependencies.lock"
   ]

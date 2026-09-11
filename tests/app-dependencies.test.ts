@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { appDependencies, dependencyIssue } from "../src/runtime/app-dependencies";
+import { appDependencies, dependencyIssue } from "../src/runtime/adapters/expo/app-dependencies";
 import { prepareMatchedHost } from "../src/runtime/host/matched";
 
 test("private dependency failures identify the install prerequisite without exposing registry credentials or attempting a native build", async t => {

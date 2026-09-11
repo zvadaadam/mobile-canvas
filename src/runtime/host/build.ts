@@ -7,9 +7,11 @@ import { mkdir, readFile, readdir, writeFile, cp, symlink, rm, copyFile, open } 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { createRequire } from "node:module";
 import { repository } from "../paths";
 import { prepareBuildScripts } from "./build-scripts";
 import { copyTemplate } from "./copy-template";
+import { stageNativeCanvas } from "./canvas-template";
 import { authoredHostPaths, signingTeam, sourceCheckout, nativeAppPath } from "../installation";
 
 const { values } = parseArgs({ options: { team: { type: "string" }, incremental: { type: "boolean" }, host: { type: "string" }, output: { type: "string" } } });
@@ -44,6 +46,7 @@ if (!values.host && !sourceCheckout) {
     await run('npm', ['ci', '--no-audit', '--no-fund'], host, 'install.log');
   }
 }
+await stageNativeCanvas(host);
 const sdk = Number(JSON.parse(await readFile(join(host, 'node_modules/expo/package.json'), 'utf8')).version.split('.')[0]);
 const plist = (file: string) => JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", file], { encoding: "utf8" }));
 
@@ -58,8 +61,14 @@ if (!values.incremental) {
   const appDirectory = (await readdir(join(host, "ios"))).find((name) => existsSync(join(host, "ios", name, "AppDelegate.swift")));
   if (!appDirectory) throw new Error("Run one full native host build before --incremental.");
   await copyFile(join(host, "native/CanvasHost.swift"), join(host, "ios", appDirectory, "AppDelegate.swift"));
-  for (const name of ["CanvasInspector.swift", "CanvasRenderer.swift", "ExpoRenderer.swift"])
+  const sourceNames = (await readdir(join(host, 'native'))).filter(name => name.endsWith('.swift') && name !== 'CanvasHost.swift').sort();
+  const { IOSConfig } = createRequire(join(host, 'package.json'))('expo/config-plugins');
+  const project = IOSConfig.XcodeUtils.getPbxproj(host);
+  for (const name of sourceNames) {
     await copyFile(join(host, "native", name), join(host, "ios", appDirectory, name));
+    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({ filepath: `${appDirectory}/${name}`, groupName: appDirectory, project });
+  }
+  await writeFile(project.filepath, project.writeSync());
   for (const asset of (await readdir(join(host, "assets"))).filter((name) => /\.(imageset|dataset)$/.test(name)))
     await cp(join(host, "assets", asset), join(host, "ios", appDirectory, "Images.xcassets", asset), { recursive: true });
 }

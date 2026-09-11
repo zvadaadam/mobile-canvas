@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm, realpath, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { collectHrefs, buildRouteMap, matchesRoute } from "../src/runtime/frames";
+import { collectHrefs, buildRouteMap, matchesRoute } from "../src/runtime/adapters/expo/frames";
 import { ProjectStore } from "../src/runtime/project";
 import { identityOf, CommandSchema } from "../src/shared/model";
 

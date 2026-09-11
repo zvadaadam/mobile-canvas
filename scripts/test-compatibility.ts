@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { buildRouteMap } from '../src/runtime/frames';
+import { buildRouteMap } from '../src/runtime/adapters/expo/frames';
 import { ProjectStore } from '../src/runtime/project';
 import { identityOf } from '../src/shared/model';
 import { arrangeByFlow } from '../src/runtime/arrange';
@@ -16,6 +16,11 @@ const cache = resolve('.context/compatibility');
 await mkdir(cache, { recursive: true });
 const reports: unknown[] = [];
 for (const app of apps) {
+ if (process.argv.includes('--public') && app.access !== 'public') {
+  reports.push({app: app.id, status: 'not-selected', reason: 'Private reference; use the full maintainer corpus with repository access.'});
+  console.log(`${app.id}: private reference not selected by --public`);
+  continue;
+ }
  const started = Date.now(), directory = await realpath(await mkdtemp(join(tmpdir(), `canvas-${app.id}-`)));
  let store: ProjectStore | undefined;
  try {

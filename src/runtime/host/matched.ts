@@ -3,10 +3,11 @@ import { spawn } from "node:child_process";
 import { cp, mkdir, readFile, writeFile, open, access, readdir, rm } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { repository } from "../paths";
-import { appDependencies, dependencyIssue } from "../app-dependencies";
+import { appDependencies, dependencyIssue } from "../adapters/expo/app-dependencies";
 import { createRequire } from "node:module";
 import { sharedFontLoader } from "./fonts";
 import { copyTemplate } from "./copy-template";
+import { stageNativeCanvas } from "./canvas-template";
 import { writeFileAtomically } from "../atomic-file";
 const { excluded, iconPackages } = createRequire(import.meta.url)(join(repository, "apps/linked-host/design/environment.cjs")) as { excluded: string[]; iconPackages: string[] };
 
@@ -105,8 +106,9 @@ export async function prepareMatchedHost(project: string, app: string, signal?: 
     // Atomic replacement avoids modifying a package-manager hardlink in the source app.
     await writeFileAtomically(fontFile, fontSource);
   }
-  for (const name of ["index.tsx", "Screen.tsx", "Boundary.tsx", "UnavailablePreview.tsx", "frame-errors.ts", "console.ts", "registry.d.ts", "with-native-canvas.cjs", "native", "assets"])
+  for (const name of ["index.tsx", "Screen.tsx", "Boundary.tsx", "UnavailablePreview.tsx", "frame-errors.ts", "console.ts", "registry.d.ts", "with-native-canvas.cjs", "native"])
     await copyTemplate(join(source, name), join(host, name));
+  await stageNativeCanvas(host);
   for (const name of ["metro.cjs", "LinkedApp.tsx", "RouteObserver.ts", "PagerPreview.ts", "GuardPreview.ts", "FrameNavigation.ts", "route-location.ts", "babel.config.cjs", "preview-routes.cjs", "SQLite.ts", "MMKV.ts", "FrameDimensions.ts", "context.d.ts", "design"])
     await copyTemplate(join(repository, "apps/linked-host", name), join(host, name === "metro.cjs" ? "metro.config.cjs" : name));
   if (offline) await writeFile(join(host, "index.tsx"), "import './design/Network';\n" + await readFile(join(source, "index.tsx"), "utf8"));

@@ -15,7 +15,7 @@ import { discoverPager } from "./pagers";
 /** Estimated phone insets, reported as layout metadata only. */
 const device = { statusBar: 59, navigationBar: 44, largeTitle: 52, searchBar: 52, homeIndicator: 34, tabBar: 66, sheetGrabber: 20 } as const;
 
-import type { StaticValue, StaticOptions, NavigatorKind, LayoutInfo, TabInfo, RouteFrame, RouteMap } from "../shared/routes";
+import type { StaticValue, StaticOptions, NavigatorKind, LayoutInfo, TabInfo, RouteFrame, RouteMap } from "../../../shared/routes";
 
 export interface ImportBinding { specifier: string; default: boolean; named: string[]; namespace: string | null; members: string[] }
 
