@@ -4,7 +4,18 @@ A native Mac canvas for exploring and designing real mobile interfaces. Expo scr
 
 Start with [installation](docs/distribution.md), [contributing and repository structure](CONTRIBUTING.md), or the [documentation index](docs/README.md). The current executable is `expo-canvas`; the proposed Mobile Canvas rename has not shipped.
 
-The experimental [npm developer package](docs/distribution.md) can be built with `npm run package` and verified with `npm run test:package`. `expo-canvas setup --app /path/to/app --install --team YOURTEAMID` guides Mac setup, saves the team and installs frozen app dependencies before launch. Native execution still needs Apple silicon, Xcode and development signing; this is not a standalone Mac installer.
+Install the developer preview on an Apple-silicon Mac with Node 22.14+:
+
+```sh
+npm install --global https://github.com/zvadaadam/expo-canvas/releases/download/v0.1.0/expo-canvas-0.1.0.tgz
+cd /path/to/your/expo-app
+expo-canvas setup --install
+expo-canvas open
+```
+
+Setup checks Xcode, CocoaPods, app dependencies and local development signing. The first native build takes several minutes; later opens reuse it. Use `--offline` on setup and open for supported service-disconnected previews. This is a developer tool that compiles locally, not a standalone Mac installer. See [installation and prerequisites](docs/distribution.md).
+
+[MIT licensed](LICENSE). Independent project; not affiliated with Expo. Bundled assets retain their [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ![Expo Canvas showing the Expo Workout app as a flow of live screens](docs/native-studio.png)
 

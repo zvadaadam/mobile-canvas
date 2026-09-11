@@ -7,3 +7,6 @@ node_modules/
 # Shared native sources are materialized here for the authored Expo build.
 apps/native-host/native/Canvas*.swift
 apps/native-host/assets/
+# npm prepack snapshot; the host package-lock.json remains canonical.
+apps/native-host/dependencies.lock
+*.tgz
