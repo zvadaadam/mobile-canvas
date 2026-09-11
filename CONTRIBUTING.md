@@ -31,13 +31,14 @@ With Node 22.14+ and Git:
 
 ```sh
 npm ci
+npm ci --prefix apps/native-host
 npm run check
 npm test
 npm run test:compat:public
 npm run test:package
 ```
 
-The public corpus fetches only pinned Hot Chocolate and Clarity source. It never installs or executes their applications. macOS unit tests also invoke the Swift scanner and need compatible Xcode; those tests are explicitly skipped on other systems. Passing non-Mac tests is not native validation. The package test installs a tarball in a temporary prefix and verifies the actual CLI/MCP without compiling an app.
+The host dependency install supplies the Babel transforms and native package metadata exercised by the unit tests; it does not compile or launch an app. The public corpus fetches only pinned Hot Chocolate and Clarity source. It never installs or executes their applications. macOS unit tests also invoke the Swift scanner and need compatible Xcode; those tests are explicitly skipped on other systems. Passing non-Mac tests is not native validation. The package test installs a tarball in a temporary prefix and verifies the actual CLI/MCP without compiling an app.
 
 The public GitHub Actions workflow uses Node 22.14 and Xcode 26.3 on macOS 15. It runs these checks plus the Expo host TypeScript check, with read-only repository access and no signing credentials. Native unit tests also type-check the shared UIKit shell with Swift 6 isolation and exercise session decoding, stale reads, selection ordering, cancellation and reconnects against a local test server. Signed builds and pixel checks remain maintainer acceptance steps.
 
