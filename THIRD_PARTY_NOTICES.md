@@ -8,3 +8,5 @@ Mobile Canvas's original code is licensed under the [MIT License](LICENSE).
 - Hot Chocolate and Clarity are external compatibility references, fetched at pinned revisions for testing. Their source is not included in the distributed npm package. Private test apps are also not redistributed.
 
 Mobile Canvas is an independent project and is not an official Expo product. This license does not grant rights to third-party names or trademarks.
+
+The embedded MCP App bundles its browser SDK dependencies. Their full license texts are generated in `apps/mcp-app/dist/THIRD_PARTY_NOTICES.txt` alongside the packaged HTML. Native previews remain rendered by the native host.

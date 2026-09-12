@@ -36,6 +36,10 @@ Explicit `--offline` / import `offline: true` records a design environment in `a
 
 `packages/preview` exposes disposable mock state and navigation by screen key to components; the host gives each mounted screen its own provider.
 
+## Embedded MCP review
+
+`mcp-app.ts` projects the existing session into the optional MCP App in `apps/mcp-app`. The app serves a bundled HTML review via a tool-linked resource, uses the host bridge for actions and receives native captures from the existing inspection path. It has no renderer, editor or transaction authority of its own. Native interaction remains in the Mac canvas. See [MCP Apps setup and boundaries](mcp-apps.md).
+
 ## Human canvas
 
 The native shell separates its protocol, state and views. `CanvasRuntimeClient` owns cancellable loopback requests and typed response decoding, shared by the shell and Swift frame reports. Decoding runs off the UI executor; callbacks return to `MainActor`. `CanvasWire` decodes stable session/screen/command fields with `Decodable`, checks document identity/order and geometry, and preserves flexible app props as `CanvasJSON`. Wire models explicitly opt out of actor isolation so imported targets can use either default isolation mode. Renderer integrations and the props inspector retain a Foundation dictionary bridge; they do not define another document model. Zod remains authoritative for runtime mutations.

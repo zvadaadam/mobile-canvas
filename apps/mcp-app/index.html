@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mobile Canvas</title>
+    <style>
+      /* CANVAS_STYLE */
+    </style>
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <div>
+          <strong>Mobile Canvas</strong>
+          <p id="project">Connecting to your project…</p>
+        </div>
+        <div class="toolbar">
+          <button id="refresh">Refresh map</button
+          ><button id="fullscreen" hidden>Expand</button
+          ><button id="open" class="primary">Open native canvas</button>
+        </div>
+      </header>
+      <div id="error" role="alert" hidden></div>
+      <div class="workspace">
+        <aside>
+          <label for="search">Screens <span id="count"></span></label
+          ><input id="search" type="search" placeholder="Find a screen…" />
+          <nav id="screens" aria-label="Screens"></nav>
+        </aside>
+        <section class="review">
+          <div class="review-toolbar">
+            <div role="tablist" aria-label="Review mode">
+              <button
+                id="map-tab"
+                role="tab"
+                aria-controls="map-panel"
+                aria-selected="true"
+              >
+                Flow map</button
+              ><button
+                id="screen-tab"
+                role="tab"
+                aria-controls="screen-panel"
+                aria-selected="false"
+              >
+                Screen
+              </button>
+            </div>
+            <span id="status" role="status">Waiting for project</span>
+          </div>
+          <div id="map-panel" role="tabpanel" aria-labelledby="map-tab">
+            <div class="flow-viewport">
+              <svg
+                id="graph"
+                role="group"
+                aria-label="Inferred screen flow"
+              ></svg>
+            </div>
+            <p class="hint">
+              Scroll to explore inferred content navigation. Tabs, back controls
+              and some runtime states are not included.
+            </p>
+          </div>
+          <div
+            id="screen-panel"
+            role="tabpanel"
+            aria-labelledby="screen-tab"
+            hidden
+          >
+            <div class="screen-heading">
+              <div>
+                <h1 id="screen-name">Choose a screen</h1>
+                <p id="source"></p>
+              </div>
+              <button id="inspect" class="primary" disabled>
+                Inspect screen
+              </button>
+            </div>
+            <div id="preview">
+              <p id="empty">Choose a screen from the list or flow map.</p>
+              <img id="capture" alt="" hidden />
+            </div>
+            <p id="capture-status" class="hint">
+              No screen has been inspected.
+            </p>
+            <p id="issue" class="issue" hidden></p>
+            <details>
+              <summary>Screen context</summary>
+              <p id="notes"></p>
+              <div id="destinations"></div>
+            </details>
+          </div>
+        </section>
+      </div>
+      <footer>
+        <span>Real iOS pixels · Native canvas stays on this Mac</span
+        ><span
+          >Inspection can bring its window forward. Use it to interact and view
+          animation.</span
+        >
+      </footer>
+    </main>
+    <script type="module">
+      /* CANVAS_SCRIPT */
+    </script>
+  </body>
+</html>

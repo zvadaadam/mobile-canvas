@@ -3,9 +3,11 @@
 ## Use the canvas
 
 - [Install and set up a Mac](distribution.md)
+- [First run, sample apps and prompts](first-run.md)
 - [Import an Expo app](drop-in.md)
 - [Swift builds and supported inputs](swift-xcode-builds.md)
 - [Component previews, animation evidence and image fixtures](native-preview-catalog.md)
+- [Embedded MCP App review](mcp-apps.md)
 - [Agent workflow: map, inspect and diagnose](agent-workflow.md)
 - [Agent setup and editing reference](agents.md)
 

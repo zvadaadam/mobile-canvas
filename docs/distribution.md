@@ -13,11 +13,13 @@ mobile-canvas setup
 
 The release includes `SHA256SUMS` for the downloadable archive. You do not need a source checkout or npm account to install it. To update, install the URL for the new release; `npm update -g` does not track these GitHub release URLs. Remove the executable with `npm uninstall --global mobile-canvas`; your projects and per-user caches are retained.
 
-Maintainers can build exactly the same package locally with `npm ci` and `npm run package`. Ordinary `npm pack` and `npm publish` also prepare the required native host dependency snapshot through `prepack`. Install the release tarball rather than an arbitrary Git checkout. No package install hook builds an app or configures your Mac.
+Maintainers can build exactly the same package locally with `npm ci`, `npm ci --prefix apps/mcp-app` and `npm run package`. Ordinary `npm pack` and `npm publish` also prepare the required native host dependency snapshot through `prepack`. Install the release tarball rather than an arbitrary Git checkout. No package install hook builds an app or configures your Mac.
 
 The setup checklist explains missing requirements. Native previews require Apple silicon, arm64 Node 22.14+, full compatible Xcode with its initial setup completed, CocoaPods, and development signing configured in Xcode. Bun is needed for apps using Bun lockfiles or patches. Install Expo in the app, not globally; a separate global Expo CLI is unnecessary.
 
 Xcode, its license and your Apple account are configured by you. Setup does not accept agreements, install system tools or change accounts. It links to the tool installation guides. Setup reuses a saved team. If exactly one team has a valid local Apple Development signing identity, it selects and saves that team automatically. With multiple teams, an interactive terminal offers a numbered choice; with none, it explains Xcode account setup. Return skips the choice. `--team` remains an explicit override. `setup --json` is read-only unless you explicitly pass `--team`.
+
+For a guided trial with a pinned sample app, agent prompts and expected results, use the [first-run checklist](first-run.md).
 
 ## Open an existing app
 
