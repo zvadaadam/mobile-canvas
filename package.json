@@ -25,13 +25,16 @@
     "test:package": "node --import tsx scripts/test-package.ts",
     "package": "node --import tsx scripts/package.ts",
     "test:package:native": "node --import tsx scripts/test-package-native.ts",
-    "prepack": "node --import tsx scripts/prepare-package.ts"
+    "prepack": "node --import tsx scripts/prepare-package.ts",
+    "build:mcp-app": "npm run build --prefix apps/mcp-app",
+    "check:mcp-app": "npm run check --prefix apps/mcp-app"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@modelcontextprotocol/sdk": "1.30.0",
-    "zod": "4.1.13",
     "tsx": "4.23.12",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "zod": "4.1.13"
   },
   "devDependencies": {
     "@types/node": "24.13.3"
@@ -59,7 +62,8 @@
     "apps/native-host/dependencies.lock",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "scripts/prepare-package.ts"
+    "scripts/prepare-package.ts",
+    "apps/mcp-app/dist/"
   ],
   "license": "MIT",
   "repository": {

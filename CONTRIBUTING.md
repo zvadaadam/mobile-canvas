@@ -15,6 +15,7 @@ packages/native-canvas/      shared Swift canvas shell, assets and capture tool
 packages/preview/            React hooks supplied to authored preview components
 apps/native-host/            authored Expo 54 renderer and build template
 apps/linked-host/            Expo 56/57 linked-app renderer template
+apps/mcp-app/                embedded MCP review UI and browser SDK build
 apps/swift-host/             SwiftUI/UIKit renderer and native capabilities
 designs/native-studio/       small authored example, not an exported source app
 tests/fixtures/swift/        ordinary Swift apps for public regression tests
@@ -33,6 +34,9 @@ With Node 22.14+ and Git:
 ```sh
 npm ci
 npm ci --prefix apps/native-host
+npm ci --prefix apps/mcp-app
+npm run build:mcp-app
+npm run check:mcp-app
 npm run check
 npm test
 npm run test:compat:public

@@ -38,6 +38,8 @@ const requiredInputs = [
   'skills/mobile-canvas/SKILL.md',
   'docs/agent-workflow.md',
   'docs/agents.md',
+  'apps/mcp-app/dist/index.html',
+  'apps/mcp-app/dist/THIRD_PARTY_NOTICES.txt',
   'src/runtime/cli.ts',
   'src/runtime/host/build.ts',
   'src/runtime/adapters/expo/frames.ts',
@@ -106,6 +108,15 @@ try {
   assert.equal(client.getServerVersion()?.name, 'mobile-canvas');
   const list = await client.listTools();
   assert.ok(list.tools.some(tool => tool.name === 'canvas_environment'));
+  const appTool = list.tools.find(tool => tool.name === 'canvas_view');
+  const appUri = (appTool?._meta?.ui as { resourceUri?: string })?.resourceUri;
+  assert.ok(appUri && appUri.startsWith('ui://'), 'The installed server must advertise the embedded review');
+  const appResource = (await client.readResource({ uri: appUri })).contents[0];
+  assert.equal(appResource.mimeType, 'text/html;profile=mcp-app');
+  assert.ok('text' in appResource && appResource.text.includes('Mobile Canvas'));
+  const appView: any = await client.callTool({ name: 'canvas_view', arguments: {} });
+  assert.ok(!appView.isError, JSON.stringify(appView));
+  assert.equal(appView.structuredContent.view.screens.length, 0);
   const skill: any = await client.callTool({ name: 'canvas_read_skill', arguments: {} });
   assert.ok(!skill.isError, JSON.stringify(skill));
   assert.equal(skill.content[0].text, core);
@@ -132,7 +143,7 @@ try {
   const environment: any = await client.callTool({ name: 'canvas_environment', arguments: {} });
   assert.ok(!environment.isError, JSON.stringify(environment));
   assert.ok(JSON.parse(environment.content[0].text).checks.some((check: any) => check.id === 'xcode'));
-  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'bundled CLI, MCP tool and resource guidance agree; reading leaves the document and native host untouched', 'installed mobile-canvas --help', 'actual installed MCP handshake and tool list', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
+  const report = { tarball, files: files.length, compressedBytes: manifest.size, verified: ['production-only npm installation outside the checkout', 'bundled CLI, MCP tool and resource guidance agree; reading leaves the document and native host untouched', 'installed mobile-canvas --help', 'actual installed MCP handshake and tool list', 'installed MCP App resource, bundled HTML and text-only fallback', 'two-route mapping through the installed MCP server', 'Mac prerequisite report through MCP', 'installed setup explains missing tools and persists the team outside the package', 'setup detects the current Expo root and MCP detects the current Canvas root'], nativeBuild: 'not exercised by this package smoke test' };
   await writeFile(join(repository, '.context/distribution/package-test.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally { await client.close(); await rm(directory, { recursive: true, force: true }); }

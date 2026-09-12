@@ -13,8 +13,9 @@ import { doctor } from "./doctor";
 import { StudioControlSchema, StudioCaptureSchema, StudioInspectSchema, StudioOpenSchema } from "../shared/studio";
 import { ImportSchema, OriginApplySchema } from "../shared/import";
 import { canvasSkills, readCanvasSkill } from "./skills";
+import { registerCanvasApp } from "./mcp-app";
 
-export async function startMcp(client: CanvasClient) {
+export function createMcpServer(client: CanvasClient) {
   const server = new McpServer(
     { name: "mobile-canvas", version: "0.1.0" },
     {
@@ -257,6 +258,12 @@ export async function startMcp(client: CanvasClient) {
     async () => ({ url: client.url }),
     true,
   );
+  registerCanvasApp(server, client);
+  return server;
+}
+
+export async function startMcp(client: CanvasClient) {
+  const server = createMcpServer(client);
   await server.connect(new StdioServerTransport());
   return server;
 }

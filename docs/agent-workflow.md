@@ -20,6 +20,8 @@ mobile-canvas open --app /path/to/app --project /path/to/experiment
 
 Keep the experiment outside the original app. `map` is source-only discovery, so its cards are not native screen previews. `open --app` upgrades an untouched source map to supported native previews. A first build can take several minutes; later opens reuse it. Keep a terminal-owned `open` process running.
 
+A client supporting MCP Apps can call `canvas_view` for an embedded flow and native-image review. User selection can update model context; the UI-only screenshot is not automatically image evidence for the model. Call `canvas_inspect_screen` yourself when you need to evaluate pixels. The bundled [MCP Apps guide](mcp-apps.md) describes setup and boundaries.
+
 ## Read the map, then look at pixels
 
 1. Call `canvas_read` for all frames, selection, history, code version and current `project.workspaceId` / `project.sequence`. Call `canvas_route_map` for linked routes, IDs, source paths, params, notes, links and coverage limitations. Authored frames are in `canvas_read`; an empty route map does not mean the authored project has no screens.
